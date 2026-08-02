@@ -22,6 +22,7 @@ var main = null
 var index := 0
 var t := 0.0
 var show_help := false
+var tap := TapRouter.new()
 
 
 func bind(m) -> void:
@@ -41,6 +42,33 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
+## 觸控／滑鼠：手機上沒有鍵盤，選單必須能點
+func _input(event: InputEvent) -> void:
+	if not visible:
+		return
+	if show_help:
+		if TapRouter.is_press(event):
+			show_help = false
+			get_viewport().set_input_as_handled()
+		return
+	var action := tap.hit(event)
+	if action == "":
+		return
+	index = int(action)
+	_activate()
+	get_viewport().set_input_as_handled()
+	queue_redraw()
+
+
+func _activate() -> void:
+	match str(ITEMS[index]):
+		"單機對戰": start_pressed.emit()
+		"連線對戰": online_pressed.emit()
+		"商店": shop_pressed.emit()
+		"操作說明": show_help = true
+		"離開遊戲": quit_pressed.emit()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible:
 		return
@@ -58,12 +86,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			index = (index + 1) % ITEMS.size()
 		KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
 			# 用項目名稱分派，因為網頁版的選單少兩項、索引會位移
-			match str(ITEMS[index]):
-				"單機對戰": start_pressed.emit()
-				"連線對戰": online_pressed.emit()
-				"商店": shop_pressed.emit()
-				"操作說明": show_help = true
-				"離開遊戲": quit_pressed.emit()
+			_activate()
 		KEY_ESCAPE:
 			quit_pressed.emit()
 		KEY_F5:
@@ -80,6 +103,7 @@ func _draw() -> void:
 	var w := size.x
 	var h := size.y
 
+	tap.begin()
 	_draw_background(w, h)
 	_draw_orbs(w, h)
 	_draw_title(f, w, h)
@@ -88,6 +112,7 @@ func _draw() -> void:
 		_draw_help(f, w, h)
 	else:
 		_draw_menu(f, w, h)
+	tap.commit()
 
 	var skin_name := str(Game.current_skin().get("name", "白練"))
 	var mob: String = "開" if Game.mobile_mode else "關"
@@ -203,9 +228,11 @@ func _draw_menu(f: Font, w: float, h: float) -> void:
 			]), Color(0.85, 0.75, 1.0, pulse))
 		var item_col: Color = Color(1, 1, 1) if sel else Color(0.68, 0.72, 0.88)
 		_text(f, Vector2(x, y), label, sz, item_col)
+		# 可點區域刻意放大到整條橫幅，手指才好按
+		tap.add(Rect2(w * 0.5 - 220.0, y - 30.0, 440.0, 48.0), str(i))
 		y += 52.0
 
-	var hint := "↑↓ 選擇　Enter 確定"
+	var hint := "↑↓ 選擇　Enter 確定　（手機可直接點）"
 	var hw := f.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 	_text(f, Vector2(w * 0.5 - hw * 0.5, h - 56.0), hint, 14, Color(0.55, 0.6, 0.78))
 

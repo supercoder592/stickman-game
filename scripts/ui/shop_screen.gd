@@ -16,6 +16,35 @@ var message := ""
 var message_t := 0.0
 var _preview_pose := "idle"
 var _preview_t := 0.0
+var tap := TapRouter.new()
+
+
+## 觸控：點分頁切換、點清單選取、再點一次同項＝購買／裝備
+func _input(event: InputEvent) -> void:
+	if not visible:
+		return
+	var action := tap.hit(event)
+	if action == "":
+		return
+	match action:
+		"tab0":
+			tab = Tab.ELEMENT
+			index = 0
+		"tab1":
+			tab = Tab.SKIN
+			index = 0
+		"ok":
+			_confirm()
+		"back":
+			closed.emit()
+		_:
+			var i := int(action)
+			if i == index:
+				_confirm()
+			else:
+				index = i
+	get_viewport().set_input_as_handled()
+	queue_redraw()
 
 
 func bind(m) -> void:
@@ -121,6 +150,7 @@ func _draw() -> void:
 		return
 	var w := size.x
 	var h := size.y
+	tap.begin()
 
 	var bands := 20
 	for i in bands:
@@ -149,15 +179,37 @@ func _draw() -> void:
 			_draw_element_row(f, r, rows[i], i == index)
 		else:
 			_draw_skin_row(f, r, rows[i], i == index)
+		tap.add(r.grow(3.0), str(i))
 
 	_draw_preview(f, Rect2(w - 620.0, 176, 574.0, h - 240.0))
+
+	# 觸控用的按鈕
+	var ok_r := Rect2(w - 250.0, h - 84.0, 200.0, 52.0)
+	draw_rect(ok_r, Color(0.2, 0.45, 0.32, 0.9))
+	draw_rect(ok_r, Color(0.5, 1.0, 0.7, 0.75), false, 2.0)
+	var okl := "購買 / 裝備"
+	var okw := f.get_string_size(okl, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x
+	_text(f, ok_r.position + Vector2(ok_r.size.x * 0.5 - okw * 0.5, 34.0), okl, 20,
+		Color(0.9, 1.0, 0.95))
+	tap.add(ok_r, "ok")
+
+	var back_r := Rect2(46.0, h - 84.0, 150.0, 52.0)
+	draw_rect(back_r, Color(0.16, 0.17, 0.24, 0.9))
+	draw_rect(back_r, Color(0.5, 0.55, 0.72, 0.6), false, 1.6)
+	var bkl := "返回"
+	var bkw := f.get_string_size(bkl, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x
+	_text(f, back_r.position + Vector2(back_r.size.x * 0.5 - bkw * 0.5, 34.0), bkl, 20,
+		Color(0.8, 0.84, 0.95))
+	tap.add(back_r, "back")
 
 	if message_t > 0.0:
 		var a: float = clampf(message_t / 0.5, 0.0, 1.0)
 		var mw := f.get_string_size(message, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
-		draw_rect(Rect2(w * 0.5 - mw * 0.5 - 18.0, h - 78.0, mw + 36.0, 34.0),
+		draw_rect(Rect2(w * 0.5 - mw * 0.5 - 18.0, h - 148.0, mw + 36.0, 34.0),
 			Color(0.05, 0.06, 0.1, 0.85 * a))
-		_text(f, Vector2(w * 0.5 - mw * 0.5, h - 54.0), message, 18, Color(1, 0.85, 0.5, a))
+		_text(f, Vector2(w * 0.5 - mw * 0.5, h - 124.0), message, 18, Color(1, 0.85, 0.5, a))
+
+	tap.commit()
 
 
 func _draw_tabs(f: Font) -> void:
@@ -177,6 +229,7 @@ func _draw_tabs(f: Font) -> void:
 			draw_rect(r, Color(0.3, 0.34, 0.5, 0.35), false, 1.0)
 		var lc: Color = Color(1, 1, 1) if sel else Color(0.65, 0.7, 0.86)
 		_text(f, Vector2(r.position.x + 22.0, r.position.y + 27.0), labels[i], 20, lc)
+		tap.add(r, "tab%d" % i)
 		x += r.size.x + 10.0
 
 

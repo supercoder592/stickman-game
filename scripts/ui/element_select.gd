@@ -17,6 +17,32 @@ var player_pick := ""
 var t := 0.0
 var message := ""
 var message_t := 0.0
+var tap := TapRouter.new()
+
+
+## 觸控：點清單選取，點同一項或右下「確定」鈕即確認
+func _input(event: InputEvent) -> void:
+	if not visible:
+		return
+	var action := tap.hit(event)
+	if action == "":
+		return
+	if action == "ok":
+		_confirm()
+	elif action == "back":
+		if phase == Phase.OPPONENT:
+			phase = Phase.PLAYER
+			index = 0
+		else:
+			cancelled.emit()
+	else:
+		var i := int(action)
+		if i == index:
+			_confirm()          # 再點一次同一項＝確認
+		else:
+			index = i
+	get_viewport().set_input_as_handled()
+	queue_redraw()
 
 
 func bind(m) -> void:
@@ -105,6 +131,7 @@ func _draw() -> void:
 		return
 	var w := size.x
 	var h := size.y
+	tap.begin()
 
 	# 背景
 	var bands := 20
@@ -132,17 +159,40 @@ func _draw() -> void:
 	var list_y := 168.0
 	var row_h := 46.0
 	for i in _option_count():
-		_draw_row(f, Rect2(list_x, list_y + float(i) * row_h, 470.0, row_h - 6.0), i)
+		var r := Rect2(list_x, list_y + float(i) * row_h, 470.0, row_h - 6.0)
+		_draw_row(f, r, i)
+		tap.add(r.grow(3.0), str(i))
 
 	# 右側招式面板
 	_draw_moves_panel(f, Rect2(w - 590.0, 168.0, 544.0, h - 240.0))
 
+	# 觸控用的確定／返回鈕（鍵盤玩家用 Enter / Esc 即可）
+	var ok_r := Rect2(w - 250.0, h - 92.0, 200.0, 54.0)
+	draw_rect(ok_r, Color(0.2, 0.45, 0.32, 0.9))
+	draw_rect(ok_r, Color(0.5, 1.0, 0.7, 0.75), false, 2.0)
+	var ok_label := "確定"
+	var okw := f.get_string_size(ok_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
+	_text(f, ok_r.position + Vector2(ok_r.size.x * 0.5 - okw * 0.5, 36.0), ok_label, 22,
+		Color(0.9, 1.0, 0.95))
+	tap.add(ok_r, "ok")
+
+	var back_r := Rect2(46.0, h - 92.0, 160.0, 54.0)
+	draw_rect(back_r, Color(0.16, 0.17, 0.24, 0.9))
+	draw_rect(back_r, Color(0.5, 0.55, 0.72, 0.6), false, 1.6)
+	var bk := "返回"
+	var bkw := f.get_string_size(bk, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x
+	_text(f, back_r.position + Vector2(back_r.size.x * 0.5 - bkw * 0.5, 35.0), bk, 20,
+		Color(0.8, 0.84, 0.95))
+	tap.add(back_r, "back")
+
 	if message_t > 0.0:
 		var a: float = clampf(message_t / 0.5, 0.0, 1.0)
 		var mw := f.get_string_size(message, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
-		draw_rect(Rect2(w * 0.5 - mw * 0.5 - 18.0, h - 86.0, mw + 36.0, 34.0),
+		draw_rect(Rect2(w * 0.5 - mw * 0.5 - 18.0, h - 156.0, mw + 36.0, 34.0),
 			Color(0.05, 0.06, 0.1, 0.8 * a))
-		_text(f, Vector2(w * 0.5 - mw * 0.5, h - 62.0), message, 18, Color(1, 0.85, 0.5, a))
+		_text(f, Vector2(w * 0.5 - mw * 0.5, h - 132.0), message, 18, Color(1, 0.85, 0.5, a))
+
+	tap.commit()
 
 
 func _draw_matchup(f: Font, w: float) -> void:

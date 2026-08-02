@@ -20,6 +20,12 @@ config/features=PackedStringArray("4.7", "Forward Plus")
 Game="*res://scripts/game_state.gd"
 Net="*res://scripts/net/net_manager.gd"
 
+[input_devices]
+
+; 關閉觸控模擬滑鼠：開啟時一次點擊會同時產生 ScreenTouch 與 MouseButton 兩個事件，
+; 導致按鈕重複觸發、搖桿判定打架。程式已分別處理兩種事件，不需要模擬。
+pointing/emulate_mouse_from_touch=false
+
 [display]
 
 window/size/viewport_width=1280

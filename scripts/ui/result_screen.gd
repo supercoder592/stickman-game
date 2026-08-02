@@ -26,6 +26,15 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
+## 結算畫面點任意處即可離開（手機沒有鍵盤）
+func _input(event: InputEvent) -> void:
+	if not visible or t < 0.5:
+		return
+	if TapRouter.is_press(event):
+		dismissed.emit()
+		get_viewport().set_input_as_handled()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible or t < 0.5:
 		return
@@ -86,7 +95,7 @@ func _draw() -> void:
 		Color(0.75, 0.8, 0.95, appear))
 
 	if t > 0.9:
-		var hint := "按 Enter 回到主畫面"
+		var hint := "按 Enter 或點畫面回到主畫面"
 		var hw := f.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 		var blink := 0.6 + 0.4 * sin(t * 4.0)
 		# 放在橫幅下方而非畫面底部，否則會被 HUD 的招式格擋住
