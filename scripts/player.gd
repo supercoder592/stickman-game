@@ -29,6 +29,14 @@ var _in_jump_edge := false
 var _in_punch_edge := false
 var _in_move_edge := [false, false, false]
 
+## 觸控狀態由 TouchControls 在事件發生時直接寫入並保持，
+## 不是每幀推送 —— 畫面幀率低於物理幀率時，每幀推送會讓物理步驟讀到過期的 false，
+## 導致可變跳躍高度立刻把跳躍砍掉（跳超矮）、搖桿軸值閃爍。
+var touch_axis := 0.0
+var touch_jump_held := false
+## 觸控跳躍不套用「放開按鍵就縮短跳躍」，因為點擊本來就是瞬間放開
+var _jump_from_touch := false
+
 var _coyote := 0.0
 var _jump_buffer := 0.0
 var _punch_t := -1.0
@@ -37,7 +45,7 @@ var _punch_t := -1.0
 func _ready() -> void:
 	max_hp = 200.0
 	move_speed = 300.0
-	jump_speed = 660.0
+	jump_speed = 720.0
 	team = 0
 	skin = Game.current_skin()
 	body_color = skin.get("body", Color(0.95, 0.97, 1.0))
@@ -61,15 +69,20 @@ func push_remote_input(axis: float, jump: bool, punch: bool, m0: bool, m1: bool,
 		_in_move_edge[2] = true
 
 
-## 觸控／虛擬搖桿也走這裡（由 TouchControls 呼叫）
+## 觸控／虛擬搖桿：TouchControls 只在事件發生時呼叫，狀態由此保持到下次變更
 func push_touch_axis(axis: float, jump_held: bool) -> void:
-	in_axis = axis
-	in_jump_held = jump_held
+	touch_axis = axis
+	touch_jump_held = jump_held
 
 
 func press_jump() -> void:
 	_jump_buffer = 0.12
-	in_jump_held = true
+	touch_jump_held = true
+	_jump_from_touch = true
+
+
+func release_jump() -> void:
+	touch_jump_held = false
 
 
 func press_punch() -> void:
@@ -81,17 +94,20 @@ func press_move(i: int) -> void:
 		_in_move_edge[i] = true
 
 
+## 每個物理幀重新合成輸入意圖：鍵盤優先，沒有鍵盤輸入時採用觸控狀態
 func _gather_local_input() -> void:
 	var dir := 0.0
 	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
 		dir -= 1.0
 	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
 		dir += 1.0
-	# 鍵盤沒有輸入時保留觸控搖桿推進來的值
-	if dir != 0.0:
-		in_axis = dir
-	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_SPACE):
-		in_jump_held = true
+	in_axis = dir if dir != 0.0 else touch_axis
+
+	var kb_jump := Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP) \
+		or Input.is_key_pressed(KEY_SPACE)
+	in_jump_held = kb_jump or touch_jump_held
+	if kb_jump:
+		_jump_from_touch = false
 
 
 ## 消化這一幀累積的按鍵邊緣事件
@@ -136,23 +152,25 @@ func _control(delta: float) -> void:
 		velocity.y = -jump_speed
 		_coyote = 0.0
 		_jump_buffer = 0.0
+		_jump_from_touch = touch_jump_held and not (
+			Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP)
+			or Input.is_key_pressed(KEY_SPACE))
 		if arena:
 			Fx.particles(arena.fx_back, global_position, {
 				"amount": 8, "lifetime": 0.3, "vmin": 40.0, "vmax": 120.0, "spread": 70.0,
 				"direction": Vector2(0, 1), "gravity": Vector2(0, 300), "smin": 0.1, "smax": 0.3,
 				"colors": [Color(1, 1, 1, 0.5), Color(1, 1, 1, 0)],
 			})
-	# 可變跳躍高度
-	if not jump_held and velocity.y < -150.0:
+	# 可變跳躍高度：按住跳越高、放開就切短。
+	# 觸控的「點一下」本質上是瞬間放開，套用這個規則會變成永遠只能跳最矮，
+	# 因此觸控起跳一律給滿高度。
+	if not jump_held and not _jump_from_touch and velocity.y < -150.0:
 		velocity.y = -150.0
 
 	# 下落加速，手感較俐落
 	if velocity.y > 0.0:
 		velocity.y += 700.0 * delta
-
-	# 本地輸入每幀重置，觸控／遠端則由推送方負責維持
-	if input_source == InputSource.LOCAL:
-		in_jump_held = false
+		_jump_from_touch = false
 
 
 func _physics_process(delta: float) -> void:

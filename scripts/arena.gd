@@ -38,6 +38,7 @@ var finished := false
 var intro_t := 0.0             # 開場倒數（此期間雙方無法行動）
 var mode: int = Mode.SOLO
 
+var _hitstop := 0.0
 var _shake_amount := 0.0
 var _shake_time := 0.0
 var _shake_total := 0.01
@@ -270,6 +271,14 @@ func _build_camera() -> void:
 # ------------------------------------------------------------------ 每幀
 func _process(delta: float) -> void:
 	_bg_t += delta
+
+	# 頓幀倒數必須用真實時間，否則被自己放慢的 time_scale 拖住而永遠回不來
+	if _hitstop > 0.0:
+		_hitstop -= delta / maxf(Engine.time_scale, 0.001)
+		if _hitstop <= 0.0:
+			_hitstop = 0.0
+			Engine.time_scale = 1.0
+
 	if intro_t > 0.0:
 		intro_t -= delta
 		# 倒數期間雙方都不能動（否則對手會在「3、2、1」時就先出手）
@@ -317,6 +326,15 @@ func _update_camera(delta: float) -> void:
 		camera.offset = camera.offset.lerp(Vector2.ZERO, clampf(delta * 12.0, 0.0, 1.0))
 
 
+## 頓幀：命中瞬間把時間放慢一下下，是格鬥遊戲打擊感的關鍵。
+## 連線對戰不使用，否則會讓主機與客戶端的模擬步調不同步。
+func hitstop(seconds: float) -> void:
+	if mode != Mode.SOLO or _hitstop > 0.0:
+		return
+	_hitstop = seconds
+	Engine.time_scale = 0.05
+
+
 func shake(amount: float, duration := 0.25) -> void:
 	if amount >= _shake_amount * clampf(_shake_time / maxf(_shake_total, 0.001), 0.0, 1.0):
 		_shake_amount = amount
@@ -341,6 +359,7 @@ func _on_fighter_died(who: Fighter) -> void:
 	if mode == Mode.NET_HOST:
 		Net.broadcast_over(who != player)
 	finished = true
+	_hitstop = 0.0
 	shake(14.0, 0.5)
 	var player_won := who != player
 	if player and is_instance_valid(player):

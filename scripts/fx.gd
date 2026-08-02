@@ -574,6 +574,49 @@ static func shockwave(parent: Node, pos: Vector2, r1: float, col: Color, life :=
 	parent.add_child(s)
 
 
+## 重擊白閃：命中瞬間的十字強光 + 快速外擴環，配合頓幀使用
+class ImpactFlash extends Node2D:
+	var col := Color.WHITE
+	var power := 1.0
+	var life := 0.22
+	var t := 0.0
+
+	func _ready() -> void:
+		var mat := CanvasItemMaterial.new()
+		mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		material = mat
+		z_index = 30
+		rotation = randf_range(-0.25, 0.25)
+
+	func _process(delta: float) -> void:
+		t += delta
+		if t >= life:
+			queue_free()
+			return
+		queue_redraw()
+
+	func _draw() -> void:
+		var k: float = clampf(t / life, 0.0, 1.0)
+		var a := (1.0 - k) * (1.0 - k)
+		var s: float = (60.0 + 90.0 * power) * (0.5 + k * 1.1)
+		# 十字強光
+		draw_line(Vector2(-s, 0), Vector2(s, 0), Color(1, 1, 1, a * 0.9), 6.0 * (1.0 - k), true)
+		draw_line(Vector2(0, -s * 0.45), Vector2(0, s * 0.45),
+			Color(1, 1, 1, a * 0.7), 4.0 * (1.0 - k), true)
+		# 元素色外擴環
+		draw_arc(Vector2.ZERO, s * 0.55, 0, TAU, 32,
+			Color(col.r, col.g, col.b, a * 0.75), 5.0 * (1.0 - k), true)
+		draw_circle(Vector2.ZERO, 14.0 * (1.0 - k) * power, Color(1, 1, 1, a))
+
+
+static func impact_flash(parent: Node, pos: Vector2, col: Color, damage: float) -> void:
+	var f := ImpactFlash.new()
+	f.position = pos
+	f.col = col
+	f.power = clampf(damage / 30.0, 0.6, 2.2)
+	parent.add_child(f)
+
+
 static func spark(parent: Node, pos: Vector2, col: Color, size := 26.0) -> void:
 	var s := HitSpark.new()
 	s.position = pos

@@ -36,16 +36,22 @@ func _process(delta: float) -> void:
 	t += delta
 	for k in _flash.keys():
 		_flash[k] = maxf(0.0, _flash[k] - delta)
-	# 搖桿持續推進軸值（觸控是狀態而非事件）
-	var p = _player()
-	if p and _stick_touch != -1:
-		var dx: float = clampf((_stick_pos.x - _stick_origin.x) / STICK_R, -1.0, 1.0)
-		if absf(dx) < 0.2:
-			dx = 0.0
-		p.push_touch_axis(dx, _btn_touches.values().has("jump"))
-	elif p and enabled:
-		p.push_touch_axis(0.0, _btn_touches.values().has("jump"))
 	queue_redraw()
+
+
+## 把目前的搖桿與跳躍狀態寫進玩家。
+## 只在觸控事件發生時呼叫（不是每幀）—— 每幀推送會和物理幀率不同步，
+## 造成跳躍被可變高度邏輯砍掉、軸值閃爍。
+func _sync_state() -> void:
+	var p = _player()
+	if p == null:
+		return
+	var dx := 0.0
+	if _stick_touch != -1:
+		dx = clampf((_stick_pos.x - _stick_origin.x) / STICK_R, -1.0, 1.0)
+		if absf(dx) < 0.16:
+			dx = 0.0
+	p.push_touch_axis(dx, _btn_touches.values().has("jump"))
 
 
 func _player():
@@ -94,6 +100,8 @@ func _input(event: InputEvent) -> void:
 	if drag:
 		if drag.index == _stick_touch:
 			_stick_pos = drag.position
+			_sync_state()
+			get_viewport().set_input_as_handled()
 		return
 
 	# 桌機用滑鼠模擬，方便測試
@@ -104,6 +112,7 @@ func _input(event: InputEvent) -> void:
 	var mm := event as InputEventMouseMotion
 	if mm and _stick_touch == -2:
 		_stick_pos = mm.position
+		_sync_state()
 
 
 func _handle_press(index: int, pos: Vector2, pressed: bool) -> void:
@@ -120,20 +129,24 @@ func _handle_press(index: int, pos: Vector2, pressed: bool) -> void:
 					"m0": p.press_move(0)
 					"m1": p.press_move(1)
 					"m2": p.press_move(2)
+			_sync_state()
 			get_viewport().set_input_as_handled()
 			return
-		# 左半邊當作搖桿
-		if pos.x < size.x * 0.5 and _stick_touch == -1:
+		# 左半邊當作搖桿（按下的位置即為搖桿原點，手指落在哪都能操作）
+		if pos.x < size.x * 0.55 and _stick_touch == -1:
 			_stick_touch = index
 			_stick_origin = pos
 			_stick_pos = pos
+			_sync_state()
 			get_viewport().set_input_as_handled()
 	else:
 		if index == _stick_touch:
 			_stick_touch = -1
-			if p:
-				p.push_touch_axis(0.0, false)
+		var was: String = _btn_touches.get(index, "")
 		_btn_touches.erase(index)
+		if was == "jump" and p:
+			p.release_jump()
+		_sync_state()
 
 
 # ------------------------------------------------------------------ 繪製

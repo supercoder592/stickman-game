@@ -308,6 +308,18 @@ func take_damage(amount: float, knockback := Vector2.ZERO, opts: Dictionary = {}
 		if arena:
 			Fx.damage_text(arena.fx_front, global_position + Vector2(0, -84), amount, col)
 			Fx.spark(arena.fx_front, global_position + Vector2(0, -40), col, 22.0)
+			# 重擊追加：頓幀 + 白閃 + 放射狀火花，讓打擊有份量
+			if amount >= 18.0:
+				arena.hitstop(clampf(amount / 420.0, 0.03, 0.11))
+				Fx.impact_flash(arena.fx_front, center(), col, amount)
+				Fx.particles(arena.fx_front, center(), {
+					"amount": int(clampf(amount * 0.6, 8, 26)), "lifetime": 0.4,
+					"vmin": 140.0, "vmax": 420.0, "spread": 180.0,
+					"direction": Vector2(signf(knockback.x), -0.3), "gravity": Vector2(0, 700),
+					"smin": 0.12, "smax": 0.4, "additive": true,
+					"colors": [Color(1, 1, 1, 1), Color(col.r, col.g, col.b, 0.7),
+						Color(col.r, col.g, col.b, 0.0)],
+				})
 
 	var armored: bool = super_armor > 0.0 and not opts.get("ignore_armor", false)
 	if not armored:
