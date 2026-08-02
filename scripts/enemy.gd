@@ -47,9 +47,11 @@ func configure(element: String, difficulty := 1.0) -> void:
 	# 對手固定是「鬼」的外型（骷髏臉 + 雙角），再依元素染色以便辨識
 	var ec := Game.element_color(element)
 	body_color = ec.lerp(Color(1, 0.5, 0.5), 0.35)
+	# 對手固定是「鬼」的外型，並和玩家一樣戴上元素色拳套
 	skin = {
 		"body": body_color, "accent": ec,
-		"head": "skull", "acc": "horns", "width": 5.5, "glow": false, "trail": false,
+		"head": "horned", "hands": "basic", "chest": "haori",
+		"width": 5.5, "build": 1.06, "limb_w": 1.1, "glow": false, "trail": false,
 	}
 	max_hp = 200.0
 	hp = max_hp

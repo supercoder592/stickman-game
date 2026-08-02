@@ -176,6 +176,7 @@ func equip_element(new_id: String) -> void:
 			m.dispose()
 	moves.clear()
 	element_id = new_id
+	_refresh_look()
 	if new_id == "" or not Game.ELEMENTS.has(new_id):
 		return
 	var classes := Movesets.for_element(new_id)
@@ -192,6 +193,11 @@ func equip_element(new_id: String) -> void:
 			sk.cooldown = 0.0
 			sk.recovery = maxf(sk.recovery, 0.26)
 		moves.append(sk)
+
+
+## 子類別覆寫：元素改變時重新組出外觀（顏色跟著元素走）
+func _refresh_look() -> void:
+	pass
 
 
 func tick_moves(delta: float) -> void:

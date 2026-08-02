@@ -115,12 +115,69 @@ const ELEMENTS := {
 ## 造型：火柴人是純程式繪製的，所以造型 = 頭部樣式 + 配件 + 線條粗細 + 光暈 的組合。
 ## head: circle / square / helm / hood / skull
 ## acc:  none / scarf / haori / horns / halo / wings / topknot
-## build   = 整體體型倍率（最重要的辨識線索，遠看就能分辨）
-## head_r  = 頭部大小倍率
-## limb_w  = 四肢粗細倍率
+## ==================================================================
+## 部位化換裝
+## ==================================================================
+## 造型拆成五個部位各自挑選，玩家自由搭配。
+## 顏色不由造型決定，而是跟著當前元素走 —— 這樣火屬性天然就是緋紅配色、
+## 水屬性是水藍配色，拳套也自動染上元素色（每個屬性都有拳套）。
+const PART_SLOTS: PackedStringArray = ["head", "chest", "waist", "legs", "hands"]
+
+const SLOT_NAMES := {
+	"head": "頭", "chest": "胸", "waist": "腹", "legs": "腳", "hands": "手",
+}
+
+const PARTS := {
+	"head": {
+		"plain": {"name": "素面", "desc": "沒有多餘裝飾", "price": 0},
+		"topknot": {"name": "髮髻", "desc": "束起的武士髮髻", "price": 150},
+		"flame_hair": {"name": "火焰鬃髮", "desc": "尖銳如火舌的鬃髮", "price": 400},
+		"hood": {"name": "兜帽", "desc": "遮住臉的深色兜帽", "price": 300},
+		"helm": {"name": "面甲", "desc": "橫條面甲與頭冠", "price": 500},
+		"mask": {"name": "般若面具", "desc": "深色面具與紅色眼縫", "price": 600},
+		"horned": {"name": "巨角", "desc": "自額側長出的雙角", "price": 700},
+	},
+	"chest": {
+		"none": {"name": "無", "desc": "不穿外衣", "price": 0},
+		"scarf": {"name": "長巾", "desc": "隨風擺動的長巾", "price": 200},
+		"haori": {"name": "羽織", "desc": "披在背側的短外衣", "price": 250},
+		"cape": {"name": "大披風", "desc": "下襬張開的長披風", "price": 450},
+		"armor": {"name": "胸甲", "desc": "肩甲與胸甲，上身變寬", "price": 600},
+		"blades": {"name": "背負雙刀", "desc": "背後交叉的雙刀", "price": 700},
+		"wings": {"name": "雙翼", "desc": "向後上方張開的翼", "price": 800},
+	},
+	"waist": {
+		"none": {"name": "無", "desc": "腰間無裝飾", "price": 0},
+		"belt": {"name": "腰帶", "desc": "簡單的束腰", "price": 120},
+		"sash": {"name": "腰間垂布", "desc": "垂在側邊的長布", "price": 300},
+		"plates": {"name": "裙甲", "desc": "腰間的分片甲葉", "price": 500},
+		"tail": {"name": "長尾", "desc": "分節擺動的長尾", "price": 650},
+	},
+	"legs": {
+		"plain": {"name": "素腿", "desc": "沒有護具", "price": 0},
+		"wraps": {"name": "綁腿", "desc": "纏繞的布條", "price": 150},
+		"boots": {"name": "重靴", "desc": "厚實的長靴", "price": 350},
+		"greaves": {"name": "護脛", "desc": "金屬護脛與膝甲", "price": 550},
+	},
+	"hands": {
+		"basic": {"name": "拳套", "desc": "基本拳套，所有屬性標配", "price": 0},
+		"heavy": {"name": "重拳套", "desc": "更厚重，普攻威力更高", "price": 300},
+		"spiked": {"name": "尖刺拳套", "desc": "指節帶尖刺", "price": 500},
+		"energy": {"name": "能量拳套", "desc": "纏繞元素能量，拖出火焰", "price": 750},
+	},
+}
+
+## 預設穿著（全部免費部位）
+const DEFAULT_PARTS := {
+	"head": "plain", "chest": "none", "waist": "none",
+	"legs": "plain", "hands": "basic",
+}
+
+
+## 舊版整套造型資料（已停用，保留供參考）
 const SKIN_ORDER: PackedStringArray = [
-	"plain", "corps", "aqua", "flame", "fists", "musha", "crow", "oni",
-	"thunder", "dragonkin", "phantom",
+	"plain", "corps", "aqua", "flame", "fists", "musha", "crow",
+	"thunder", "dragonkin",
 ]
 
 const SKINS := {
@@ -136,17 +193,18 @@ const SKINS := {
 		"head": "topknot", "acc": "haori", "width": 5.5,
 		"build": 1.0, "head_r": 1.0, "limb_w": 1.05, "glow": false, "trail": false,
 	},
+	# 炎之呼吸與水之呼吸是使用者明確認可的版本，維持原樣不再調整體型或配件。
 	"aqua": {
-		"name": "水之呼吸", "sub": "纖細身形　·　及地長巾", "price": 600,
+		"name": "水之呼吸", "sub": "水藍長巾隨風擺動", "price": 600,
 		"body": Color(0.42, 0.72, 1.0), "accent": Color(0.8, 0.95, 1.0),
 		"head": "circle", "acc": "scarf", "width": 5.0,
-		"build": 0.97, "head_r": 0.9, "limb_w": 0.8, "glow": true, "trail": false,
+		"build": 1.0, "head_r": 1.0, "limb_w": 1.0, "glow": true, "trail": false,
 	},
 	"flame": {
-		"name": "炎之呼吸", "sub": "火焰狀鬃髮　·　緋色大披風", "price": 900,
+		"name": "炎之呼吸", "sub": "緋色羽織與火焰紋", "price": 900,
 		"body": Color(0.96, 0.45, 0.22), "accent": Color(1.0, 0.82, 0.3),
-		"head": "flame_hair", "acc": "cape", "width": 5.5,
-		"build": 1.04, "head_r": 1.0, "limb_w": 1.1, "glow": true, "trail": false,
+		"head": "topknot", "acc": "haori", "width": 5.5,
+		"build": 1.0, "head_r": 1.0, "limb_w": 1.0, "glow": true, "trail": false,
 	},
 	"fists": {
 		"name": "炎拳", "sub": "厚重拳套　·　雙拳燃燒", "price": 1000,
@@ -167,12 +225,6 @@ const SKINS := {
 		"head": "hood", "acc": "wings", "width": 5.5,
 		"build": 1.0, "head_r": 1.1, "limb_w": 0.95, "glow": false, "trail": true,
 	},
-	"oni": {
-		"name": "鬼", "sub": "壯碩體格　·　骷髏面與巨角", "price": 1800,
-		"body": Color(0.86, 0.84, 0.9), "accent": Color(0.9, 0.18, 0.28),
-		"head": "skull", "acc": "horns", "width": 6.0,
-		"build": 1.2, "head_r": 1.2, "limb_w": 1.35, "glow": false, "trail": false,
-	},
 	"thunder": {
 		"name": "雷霆", "sub": "重裝護甲　·　光環與殘影", "price": 2200,
 		"body": Color(1.0, 0.88, 0.35), "accent": Color(1.0, 1.0, 0.75),
@@ -184,12 +236,6 @@ const SKINS := {
 		"body": Color(0.62, 0.45, 1.0), "accent": Color(0.95, 0.8, 0.35),
 		"head": "skull", "acc": "tail", "width": 5.6,
 		"build": 1.15, "head_r": 0.95, "limb_w": 1.05, "glow": true, "trail": false,
-	},
-	"phantom": {
-		"name": "幻影", "sub": "極高極瘦　·　只剩輪廓", "price": 3200,
-		"body": Color(0.45, 0.95, 0.95), "accent": Color(0.9, 1.0, 1.0),
-		"head": "square", "acc": "none", "width": 3.2,
-		"build": 1.16, "head_r": 0.78, "limb_w": 0.55, "glow": true, "trail": true,
 	},
 }
 
@@ -203,6 +249,11 @@ var coins: int = 0
 var unlocked: Array[String] = []
 var unlocked_skins: Array[String] = ["plain"]
 var equipped_skin: String = "plain"
+
+## 已購買的部位：`"slot/option"` 形式，例如 "head/topknot"
+var unlocked_parts: Array[String] = []
+## 目前穿著：slot -> option
+var equipped_parts: Dictionary = {}
 var equipped: String = ""
 var starter_chosen: bool = false
 var wins: int = 0
@@ -301,13 +352,80 @@ func is_unlocked(id: String) -> bool:
 	return unlocked.has(id)
 
 
-# ---------------------------------------------------------------- 造型
+# ---------------------------------------------------------------- 部位化換裝
+func part_data(slot: String, option: String) -> Dictionary:
+	return PARTS.get(slot, {}).get(option, {})
+
+
+func part_price(slot: String, option: String) -> int:
+	return int(part_data(slot, option).get("price", 0))
+
+
+func part_key(slot: String, option: String) -> String:
+	return "%s/%s" % [slot, option]
+
+
+func is_part_unlocked(slot: String, option: String) -> bool:
+	return part_price(slot, option) == 0 or unlocked_parts.has(part_key(slot, option))
+
+
+func try_unlock_part(slot: String, option: String) -> bool:
+	if is_part_unlocked(slot, option):
+		return false
+	var price := part_price(slot, option)
+	if coins < price:
+		return false
+	coins -= price
+	unlocked_parts.append(part_key(slot, option))
+	coins_changed.emit(coins)
+	save_game()
+	return true
+
+
+func equip_part(slot: String, option: String) -> bool:
+	if not is_part_unlocked(slot, option):
+		return false
+	equipped_parts[slot] = option
+	loadout_changed.emit()
+	save_game()
+	return true
+
+
+func equipped_part(slot: String) -> String:
+	return str(equipped_parts.get(slot, DEFAULT_PARTS.get(slot, "")))
+
+
+## 組出給 StickFigure 用的外觀資料。
+## 顏色跟著元素走 —— 換屬性就換整體配色，拳套也自動染上元素色。
+func build_look(element_id := "") -> Dictionary:
+	var ec: Color = element_color(element_id) if ELEMENTS.has(element_id) else Color(0.9, 0.93, 1.0)
+	var look := {
+		"body": ec.lerp(Color(0.96, 0.97, 1.0), 0.3),
+		"accent": ec.lightened(0.22),
+		"width": 5.2,
+		"build": 1.0, "head_r": 1.0, "limb_w": 1.0,
+		"glow": false, "trail": false,
+	}
+	for slot in PART_SLOTS:
+		look[slot] = equipped_part(slot)
+	# 部分部位會改變體感：重拳套更粗壯、能量拳套會發光
+	match look["hands"]:
+		"heavy":
+			look["limb_w"] = 1.18
+		"energy":
+			look["glow"] = true
+	if look["chest"] == "armor":
+		look["limb_w"] = maxf(look["limb_w"], 1.15)
+	return look
+
+
+# ---------------------------------------------------------------- 造型（舊版整套，保留相容）
 func skin_data(id: String) -> Dictionary:
 	return SKINS.get(id, SKINS["plain"])
 
 
 func current_skin() -> Dictionary:
-	return skin_data(equipped_skin)
+	return build_look(equipped)
 
 
 func is_skin_unlocked(id: String) -> bool:
@@ -391,6 +509,8 @@ func save_game() -> void:
 		"mobile_mode": mobile_mode,
 		"mobile_saved": _mobile_mode_saved,
 		"relay_address": relay_address,
+		"unlocked_parts": unlocked_parts,
+		"equipped_parts": equipped_parts,
 	}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
@@ -428,6 +548,20 @@ func load_game() -> void:
 	if not unlocked_skins.has(equipped_skin):
 		equipped_skin = "plain"
 
+	unlocked_parts.clear()
+	for k in parsed.get("unlocked_parts", []):
+		var key := str(k)
+		var bits := key.split("/")
+		if bits.size() == 2 and PARTS.has(bits[0]) and PARTS[bits[0]].has(bits[1]):
+			unlocked_parts.append(key)
+	equipped_parts.clear()
+	var saved_parts = parsed.get("equipped_parts", {})
+	if typeof(saved_parts) == TYPE_DICTIONARY:
+		for slot in PART_SLOTS:
+			var opt := str(saved_parts.get(slot, ""))
+			if PARTS.get(slot, {}).has(opt) and is_part_unlocked(slot, opt):
+				equipped_parts[slot] = opt
+
 	relay_address = str(parsed.get("relay_address", ""))
 	_mobile_mode_saved = bool(parsed.get("mobile_saved", false))
 	if _mobile_mode_saved:
@@ -442,6 +576,8 @@ func reset_progress() -> void:
 	wins = 0
 	unlocked_skins = ["plain"]
 	equipped_skin = "plain"
+	unlocked_parts.clear()
+	equipped_parts.clear()
 	save_game()
 	coins_changed.emit(coins)
 	loadout_changed.emit()

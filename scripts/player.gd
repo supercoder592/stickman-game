@@ -47,9 +47,14 @@ func _ready() -> void:
 	move_speed = 300.0
 	jump_speed = 720.0
 	team = 0
-	skin = Game.current_skin()
-	body_color = skin.get("body", Color(0.95, 0.97, 1.0))
+	_refresh_look()
 	super()
+
+
+## 外觀由五個部位組成，顏色跟著當前元素走
+func _refresh_look() -> void:
+	skin = Game.build_look(element_id)
+	body_color = skin.get("body", Color(0.95, 0.97, 1.0))
 
 
 # ------------------------------------------------------------------ 輸入蒐集
@@ -230,21 +235,28 @@ func _punch_hit() -> void:
 	var origin := global_position + Vector2(f * 40.0, -46.0)
 	var rect_x: float = -46.0 if f < 0.0 else -6.0
 	var rect := Rect2(origin + Vector2(rect_x, -26.0), Vector2(52.0, 52.0))
-	# 戴拳套的造型：普攻更重、命中帶灼燒，並拖出元素色火焰
-	var gloved: bool = skin.get("acc", "") == "gauntlets"
-	var punch_col := Color(1, 1, 1)
-	var dmg := PUNCH_DAMAGE
-	var kb_x := 260.0
-	if gloved:
-		punch_col = skin.get("accent", Color(1, 1, 1))
-		dmg = PUNCH_DAMAGE * 1.45
-		kb_x = 330.0
+	# 拳套是所有屬性的標配，款式決定普攻威力與特效
+	var glove: String = skin.get("hands", "basic")
+	var gloved := true
+	var punch_col: Color = skin.get("accent", Color(1, 1, 1))
+	var dmg := PUNCH_DAMAGE * 1.2
+	var kb_x := 290.0
+	match glove:
+		"heavy":
+			dmg = PUNCH_DAMAGE * 1.6
+			kb_x = 380.0
+		"spiked":
+			dmg = PUNCH_DAMAGE * 1.4
+			kb_x = 320.0
+		"energy":
+			dmg = PUNCH_DAMAGE * 1.45
+			kb_x = 340.0
 
 	var hit := false
 	for e in arena.fighters_of_other_team(team):
 		if e.body_rect().intersects(rect):
 			var opts := {"color": punch_col, "stun": 0.1}
-			if gloved:
+			if glove == "energy":
 				opts["burn"] = [1.6, 6.0]
 			e.take_damage(dmg, Vector2(f * kb_x, -180.0), opts)
 			hit = true

@@ -191,7 +191,13 @@ static func draw_figure(ci: CanvasItem, j_in: Dictionary, col: Color, width := 5
 		back_fade := 0.55, skin: Dictionary = {}, phase := 0.0) -> void:
 	var accent: Color = skin.get("accent", Color(0.6, 0.7, 0.9))
 	accent.a = col.a
+	# 部位化換裝：頭／胸／腹／腳／手各自獨立。
+	# 舊的整套 acc 欄位仍可運作（對手就是用整套資料），兩者並存。
 	var head_style: String = skin.get("head", "circle")
+	var chest: String = skin.get("chest", "")
+	var waist: String = skin.get("waist", "")
+	var legs: String = skin.get("legs", "")
+	var hands: String = skin.get("hands", "")
 	var acc: String = skin.get("acc", "none")
 
 	# 體型：整體大小與四肢粗細。
@@ -210,13 +216,26 @@ static func draw_figure(ci: CanvasItem, j_in: Dictionary, col: Color, width := 5
 
 	# 背後配件（羽織、雙翼、披風、雙刀）畫在身體之前
 	_draw_accessory_back(ci, j, acc, col, accent, phase, build)
+	if chest != "":
+		_draw_accessory_back(ci, j, chest, col, accent, phase, build)
+	if waist == "tail":
+		_draw_accessory_front(ci, j, "tail", col, accent, phase, build, head_r)
 
 	var back := Color(col.r * back_fade, col.g * back_fade, col.b * back_fade, col.a)
 	_draw_bones(ci, j, col, back, w)
+	if legs != "":
+		_draw_legs(ci, j, legs, col, accent, build, w)
 	_draw_head(ci, j, head_style, col, accent, head_r)
 
 	# 身前配件（長巾、犄角、光環、護甲、尾巴）
 	_draw_accessory_front(ci, j, acc, col, accent, phase, build, head_r)
+	if chest != "":
+		_draw_accessory_front(ci, j, chest, col, accent, phase, build, head_r)
+	if waist != "" and waist != "tail":
+		_draw_waist(ci, j, waist, col, accent, phase, build)
+	# 拳套永遠最後畫，確保在所有配件之上
+	if hands != "":
+		_draw_hands(ci, j, hands, col, accent, phase, build)
 
 
 ## 依體型倍率縮放所有關節座標（腳底為原點，因此直接乘即可）
@@ -298,6 +317,16 @@ static func _draw_head(ci: CanvasItem, j: Dictionary, style: String,
 					base + Vector2(f * r * 0.22, 0.0),
 					tip,
 				]), accent)
+		"horned":
+			ci.draw_circle(h, r, col)
+			for side in 2:
+				var s: float = 1.0 if side == 0 else -1.0
+				var base := h + Vector2(s * f * r * 0.62, -r * 0.7)
+				ci.draw_colored_polygon(PackedVector2Array([
+					base + Vector2(-s * f * r * 0.3, r * 0.12),
+					base + Vector2(s * f * r * 0.34, 0.0),
+					base + Vector2(s * f * r * 1.1, -r * 1.9),
+				]), Color(accent.r, accent.g, accent.b, col.a))
 		"mask":
 			ci.draw_circle(h, r, col)
 			# 般若面具：深色底 + 兩道紅色眼縫
@@ -430,18 +459,26 @@ static func _draw_accessory_front(ci: CanvasItem, j: Dictionary, acc: String,
 				ci.draw_circle(hand + dir * r * 0.3, r * 0.24,
 					Color(1, 1, 1, col.a * 0.75))
 		"armor":
-			# 肩甲 + 胸甲，讓上半身明顯變寬
+			# 肩甲 + 胸甲。深色甲身 + 元素色鑲邊 ——
+			# 整片都用元素色會和身體同色，部位之間就分不出來了。
+			var metal := Color(0.17, 0.16, 0.21, col.a)
 			for s in 2:
 				var dir: float = 1.0 if s == 0 else -1.0
 				var c := sh + Vector2(dir * f * 11.0 * b, -1.0 * b)
-				ci.draw_colored_polygon(PackedVector2Array([
+				var pauldron := PackedVector2Array([
 					c + Vector2(-7.0 * b, -5.0 * b), c + Vector2(9.0 * b * dir, -3.0 * b),
 					c + Vector2(8.0 * b * dir, 7.0 * b), c + Vector2(-6.0 * b, 8.0 * b),
-				]), Color(accent.r * 0.8, accent.g * 0.8, accent.b * 0.85, col.a))
-			ci.draw_colored_polygon(PackedVector2Array([
+				])
+				ci.draw_colored_polygon(pauldron, metal)
+				ci.draw_polyline(pauldron + PackedVector2Array([pauldron[0]]),
+					Color(accent.r, accent.g, accent.b, col.a * 0.9), 1.6 * b, true)
+			var chest_plate := PackedVector2Array([
 				sh + Vector2(-8.0 * b, 4.0 * b), sh + Vector2(8.0 * b, 4.0 * b),
 				sh + Vector2(6.0 * b, 20.0 * b), sh + Vector2(-6.0 * b, 20.0 * b),
-			]), Color(accent.r * 0.6, accent.g * 0.6, accent.b * 0.68, col.a))
+			])
+			ci.draw_colored_polygon(chest_plate, metal)
+			ci.draw_polyline(chest_plate + PackedVector2Array([chest_plate[0]]),
+				Color(accent.r, accent.g, accent.b, col.a * 0.75), 1.5 * b, true)
 		"tail":
 			# 分節長尾，隨相位擺動
 			var pts := PackedVector2Array()
@@ -464,11 +501,11 @@ static func _draw_accessory_front(ci: CanvasItem, j: Dictionary, acc: String,
 			# 長巾：頸部起一條隨正弦飄動的緞帶
 			var pts := PackedVector2Array()
 			var widths := PackedFloat32Array()
-			for i in 13:
-				var u := float(i) / 12.0
-				pts.append(neck + Vector2(-f * u * 78.0 * b,
-					2.0 * b + sin(phase * 3.2 + u * 5.0) * (5.0 + u * 20.0) * b))
-				widths.append(lerpf(7.0, 1.2, u) * b)
+			for i in 11:
+				var u := float(i) / 10.0
+				pts.append(neck + Vector2(-f * u * 52.0 * b,
+					2.0 * b + sin(phase * 3.2 + u * 5.0) * (5.0 + u * 12.0) * b))
+				widths.append(lerpf(6.0, 1.2, u) * b)
 			var poly := Fx.ribbon(pts, widths)
 			if poly.size() >= 3:
 				ci.draw_colored_polygon(poly, Color(accent.r, accent.g, accent.b, col.a * 0.95))
@@ -491,6 +528,150 @@ static func _draw_accessory_front(ci: CanvasItem, j: Dictionary, acc: String,
 			ci.draw_arc(Vector2.ZERO, r, 0, TAU, 26,
 				Color(accent.r, accent.g, accent.b, col.a * (0.55 + 0.35 * sin(phase * 4.0))), 2.6, true)
 			ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+# ------------------------------------------------------------------ 部位：腳
+static func _draw_legs(ci: CanvasItem, j: Dictionary, id: String,
+		col: Color, accent: Color, b: float, w: float) -> void:
+	if id == "plain":
+		return
+	for side_v in ["b", "f"]:
+		var side: String = side_v
+		var knee: Vector2 = j["knee_" + side]
+		var foot: Vector2 = j["foot_" + side]
+		var dir := (foot - knee).normalized()
+		if dir == Vector2.ZERO:
+			continue
+		var nrm := dir.orthogonal()
+		var front := (side == "f")
+		var shade: float = 1.0 if front else 0.7
+		match id:
+			"wraps":
+				# 綁腿：小腿上纏三圈布條
+				for i in 3:
+					var p: Vector2 = knee.lerp(foot, 0.25 + 0.25 * float(i))
+					ci.draw_line(p - nrm * w * 0.75, p + nrm * w * 0.75,
+						Color(accent.r * shade, accent.g * shade, accent.b * shade, col.a), w * 0.7, true)
+			"boots":
+				# 重靴：小腿下半段加粗，腳底延伸出鞋頭
+				var top: Vector2 = knee.lerp(foot, 0.45)
+				ci.draw_line(top, foot, Color(col.r * 0.32 * shade + 0.06,
+					col.g * 0.3 * shade + 0.05, col.b * 0.34 * shade + 0.07, col.a), w * 2.1, true)
+				ci.draw_colored_polygon(PackedVector2Array([
+					foot + nrm * w * 1.1, foot - nrm * w * 1.1,
+					foot - nrm * w * 1.1 + dir * w * 1.3 + nrm * w * 2.4 * j["facing"],
+					foot + nrm * w * 1.1 + dir * w * 1.1 + nrm * w * 2.4 * j["facing"],
+				]), Color(0.16, 0.14, 0.17, col.a))
+			"greaves":
+				# 護脛：金屬片 + 膝甲
+				var mid: Vector2 = knee.lerp(foot, 0.55)
+				ci.draw_line(knee.lerp(foot, 0.15), mid,
+					Color(accent.r * shade, accent.g * shade, accent.b * shade, col.a), w * 1.9, true)
+				ci.draw_circle(knee, w * 1.15,
+					Color(accent.r * shade, accent.g * shade, accent.b * shade, col.a))
+				ci.draw_line(mid, foot,
+					Color(col.r * 0.5, col.g * 0.5, col.b * 0.55, col.a), w * 1.2, true)
+
+
+# ------------------------------------------------------------------ 部位：腹
+static func _draw_waist(ci: CanvasItem, j: Dictionary, id: String,
+		col: Color, accent: Color, phase: float, b: float) -> void:
+	var hip: Vector2 = j["hip"]
+	var f: float = j["facing"]
+	match id:
+		"belt":
+			ci.draw_line(hip + Vector2(-9.0 * b, 0), hip + Vector2(9.0 * b, 0),
+				Color(accent.r * 0.8, accent.g * 0.75, accent.b * 0.8, col.a), 5.0 * b, true)
+			ci.draw_circle(hip, 3.4 * b, accent)
+		"sash":
+			# 腰間垂布：側邊一條隨相位擺動的長布
+			var sway := sin(phase * 2.6) * 6.0 * b
+			ci.draw_colored_polygon(PackedVector2Array([
+				hip + Vector2(-f * 10.0 * b, -3.0 * b),
+				hip + Vector2(-f * 2.0 * b, -3.0 * b),
+				hip + Vector2(-f * 5.0 * b + sway, 30.0 * b),
+				hip + Vector2(-f * 15.0 * b + sway, 32.0 * b),
+			]), Color(accent.r * 0.85, accent.g * 0.8, accent.b * 0.85, col.a * 0.95))
+			ci.draw_line(hip + Vector2(-11.0 * b, 0), hip + Vector2(11.0 * b, 0),
+				Color(accent.r * 0.7, accent.g * 0.65, accent.b * 0.7, col.a), 4.0 * b, true)
+		"plates":
+			# 裙甲：三片下垂甲葉。深色甲身 + 元素色鑲邊，
+			# 若整片都用元素色，會和身體同色而分不出部位。
+			var plate := Color(0.15, 0.14, 0.19, col.a)
+			for i in 3:
+				var x := (float(i) - 1.0) * 7.5 * b
+				var poly := PackedVector2Array([
+					hip + Vector2(x - 4.0 * b, 1.0 * b),
+					hip + Vector2(x + 4.0 * b, 1.0 * b),
+					hip + Vector2(x + 3.2 * b, 13.0 * b),
+					hip + Vector2(x - 3.2 * b, 13.0 * b),
+				])
+				ci.draw_colored_polygon(poly, plate)
+				ci.draw_polyline(poly + PackedVector2Array([poly[0]]),
+					Color(accent.r, accent.g, accent.b, col.a * 0.85), 1.3 * b, true)
+			ci.draw_line(hip + Vector2(-12.0 * b, -1.0 * b), hip + Vector2(12.0 * b, -1.0 * b),
+				Color(accent.r, accent.g, accent.b, col.a), 3.4 * b, true)
+
+
+# ------------------------------------------------------------------ 部位：手（拳套）
+## 所有屬性都戴拳套，顏色跟著元素走。四種款式差在體積、尖刺與能量拖尾。
+static func _draw_hands(ci: CanvasItem, j: Dictionary, id: String,
+		col: Color, accent: Color, phase: float, b: float) -> void:
+	var f: float = j["facing"]
+	var size_mul := 0.88
+	var energy := false
+	match id:
+		"heavy": size_mul = 1.15
+		"spiked": size_mul = 0.98
+		"energy":
+			size_mul = 1.0
+			energy = true
+
+	for key_v in ["hand_b", "hand_f"]:
+		var key: String = key_v
+		var hand: Vector2 = j[key]
+		var elbow: Vector2 = j[key.replace("hand", "elbow")]
+		var dir := (hand - elbow).normalized()
+		if dir == Vector2.ZERO:
+			dir = Vector2(f, 0)
+		var nrm := dir.orthogonal()
+		var front := (key == "hand_f")
+		var base_r: float = 7.4 if front else 6.5
+		var r: float = base_r * b * size_mul
+
+		if energy:
+			# 能量拖尾，朝手臂反方向散開
+			for i in 3:
+				var u := float(i) / 2.0
+				var off: float = 0.0 if front else 1.7
+				var flick := sin(phase * 6.0 + u * 3.0 + off)
+				ci.draw_circle(hand - dir * (r * (1.2 + u * 1.5)) + nrm * flick * 3.0 * b,
+					r * (0.85 - u * 0.25),
+					Color(accent.r, accent.g, accent.b, col.a * (0.3 - u * 0.08)))
+			ci.draw_circle(hand, r * 1.6, Color(accent.r, accent.g, accent.b, col.a * 0.26))
+
+		# 護腕
+		var cuff := hand - dir * r * 1.1
+		ci.draw_colored_polygon(PackedVector2Array([
+			cuff + nrm * r * 0.95, cuff - nrm * r * 0.95,
+			cuff - dir * r * 0.9 - nrm * r * 0.7, cuff - dir * r * 0.9 + nrm * r * 0.7,
+		]), Color(accent.r * 0.55, accent.g * 0.5, accent.b * 0.6, col.a))
+
+		# 拳體：深色皮革 + 亮色核心，壓暗才不會和手臂糊在一起
+		ci.draw_circle(hand, r, Color(col.r * 0.32, col.g * 0.28, col.b * 0.3, col.a))
+		ci.draw_circle(hand + dir * r * 0.25, r * 0.5,
+			Color(accent.r, accent.g, accent.b, col.a * 0.95))
+		ci.draw_circle(hand + dir * r * 0.3, r * 0.22, Color(1, 1, 1, col.a * 0.7))
+
+		if id == "spiked":
+			# 指節尖刺
+			for i in 3:
+				var t := -0.55 + 0.55 * float(i)
+				var base := hand + nrm * r * t + dir * r * 0.5
+				ci.draw_colored_polygon(PackedVector2Array([
+					base + nrm * r * 0.16, base - nrm * r * 0.16,
+					base + dir * r * 0.75,
+				]), Color(0.92, 0.94, 1.0, col.a))
 
 
 ## 殘影：把某一瞬間的骨架凍結下來慢慢淡出（雷電衝刺等使用）。

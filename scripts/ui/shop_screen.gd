@@ -17,6 +17,16 @@ var message_t := 0.0
 var _preview_pose := "idle"
 var _preview_t := 0.0
 var tap := TapRouter.new()
+## 造型分頁：目前正在編輯哪個部位
+var slot_index := 0
+
+
+func _slot() -> String:
+	return Game.PART_SLOTS[slot_index]
+
+
+func _slot_options() -> Array:
+	return Game.PARTS[_slot()].keys()
 
 
 ## 觸控：點分頁切換、點清單選取、再點一次同項＝購買／裝備
@@ -32,6 +42,9 @@ func _input(event: InputEvent) -> void:
 			index = 0
 		"tab1":
 			tab = Tab.SKIN
+			index = 0
+		"slot0", "slot1", "slot2", "slot3", "slot4":
+			slot_index = int(action.substr(4))
 			index = 0
 		"ok":
 			_confirm()
@@ -77,7 +90,10 @@ func _process(delta: float) -> void:
 func _entries() -> PackedStringArray:
 	if tab == Tab.ELEMENT:
 		return Game.ELEMENT_ORDER
-	return Game.SKIN_ORDER
+	var out := PackedStringArray()
+	for o in _slot_options():
+		out.append(str(o))
+	return out
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -93,11 +109,20 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_S, KEY_DOWN:
 			index = (index + 1) % count
 		KEY_A, KEY_LEFT, KEY_Q:
-			tab = Tab.ELEMENT
-			index = 0
+			# 造型分頁：左右切換部位；屬性分頁：切回屬性
+			if tab == Tab.SKIN:
+				slot_index = (slot_index - 1 + Game.PART_SLOTS.size()) % Game.PART_SLOTS.size()
+				index = 0
+			else:
+				tab = Tab.ELEMENT
+				index = 0
 		KEY_D, KEY_RIGHT, KEY_E:
-			tab = Tab.SKIN
-			index = 0
+			if tab == Tab.SKIN:
+				slot_index = (slot_index + 1) % Game.PART_SLOTS.size()
+				index = 0
+			else:
+				tab = Tab.SKIN
+				index = 0
 		KEY_TAB:
 			tab = Tab.SKIN if tab == Tab.ELEMENT else Tab.ELEMENT
 			index = 0
@@ -129,18 +154,20 @@ func _confirm() -> void:
 			Game.equip(id)
 			_toast("解鎖 %s！" % Game.element_name(id))
 	else:
-		var data: Dictionary = Game.skin_data(id)
-		if Game.is_skin_unlocked(id):
-			Game.equip_skin(id)
-			_toast("已換上 %s" % str(data["name"]))
+		var slot := _slot()
+		var data: Dictionary = Game.part_data(slot, id)
+		var label := "%s・%s" % [Game.SLOT_NAMES[slot], str(data.get("name", id))]
+		if Game.is_part_unlocked(slot, id):
+			Game.equip_part(slot, id)
+			_toast("已換上 %s" % label)
 			return
-		var price2: int = data["price"]
+		var price2 := Game.part_price(slot, id)
 		if Game.coins < price2:
 			_toast("金幣不足：還差 %d" % (price2 - Game.coins))
 			return
-		if Game.try_unlock_skin(id):
-			Game.equip_skin(id)
-			_toast("解鎖並換上 %s！" % str(data["name"]))
+		if Game.try_unlock_part(slot, id):
+			Game.equip_part(slot, id)
+			_toast("解鎖並換上 %s！" % label)
 
 
 # ------------------------------------------------------------------ 繪製
@@ -169,7 +196,13 @@ func _draw() -> void:
 
 	_draw_tabs(f)
 
-	var list := Rect2(46, 176, 520, h - 240.0)
+	# 造型分頁：先畫五個部位的切換列
+	var list_top := 176.0
+	if tab == Tab.SKIN:
+		_draw_slot_bar(f, 46.0, 176.0)
+		list_top = 232.0
+
+	var list := Rect2(46, list_top, 520, h - list_top - 110.0)
 	var rows := _entries()
 	var row_h: float = minf(56.0, (list.size.y - 8.0) / float(maxi(rows.size(), 1)))
 	for i in rows.size():
@@ -279,38 +312,61 @@ func _draw_element_row(f: Font, r: Rect2, id: String, selected: bool) -> void:
 	_text(f, Vector2(r.end.x - lw - 14.0, r.position.y + r.size.y * 0.5 + 5.0), label, 14, lc)
 
 
+## 五個部位的切換列（頭／胸／腹／腳／手）
+func _draw_slot_bar(f: Font, x0: float, y: float) -> void:
+	var x := x0
+	for i in Game.PART_SLOTS.size():
+		var slot: String = Game.PART_SLOTS[i]
+		var sel := i == slot_index
+		var r := Rect2(x, y, 96.0, 44.0)
+		draw_rect(r, Color(0.3, 0.35, 0.6, 0.3) if sel else Color(0.08, 0.09, 0.14, 0.9))
+		draw_rect(r, Color(0.7, 0.8, 1.0, 0.8) if sel else Color(0.3, 0.34, 0.5, 0.35),
+			false, 2.0 if sel else 1.0)
+		var nm: String = Game.SLOT_NAMES[slot]
+		var cur: String = Game.equipped_part(slot)
+		var cur_name: String = str(Game.part_data(slot, cur).get("name", cur))
+		_text(f, r.position + Vector2(10, 20), nm, 18,
+			Color(1, 1, 1) if sel else Color(0.7, 0.74, 0.88))
+		_text(f, r.position + Vector2(10, 36), cur_name, 11, Color(0.68, 0.76, 0.95))
+		tap.add(r, "slot%d" % i)
+		x += r.size.x + 8.0
+
+
 func _draw_skin_row(f: Font, r: Rect2, id: String, selected: bool) -> void:
-	var data: Dictionary = Game.skin_data(id)
-	var col: Color = data["body"]
-	var owned := Game.is_skin_unlocked(id)
+	var slot := _slot()
+	var data: Dictionary = Game.part_data(slot, id)
+	var col: Color = Game.element_color(Game.equipped)
+	var owned := Game.is_part_unlocked(slot, id)
 	_row_frame(r, col, selected)
 
-	var dim: float = 1.0 if owned else 0.4
-	# 縮小版的火柴人當作圖示
-	# 圖示縮放依行高計算，否則造型一多、行高被壓縮時圖示會溢出到上一行
-	var s: float = clampf((r.size.y - 6.0) / 86.0, 0.26, 0.5)
-	var c := r.position + Vector2(34, r.size.y - 4.0)
+	var dim: float = 1.0 if owned else 0.45
+	# 圖示：只戴這一件部位的火柴人，讓玩家一眼看出差別
+	var preview := Game.build_look(Game.equipped)
+	for s in Game.PART_SLOTS:
+		preview[s] = Game.DEFAULT_PARTS[s]
+	preview[slot] = id
+	var sc: float = clampf((r.size.y - 6.0) / 88.0, 0.26, 0.46)
+	var c := r.position + Vector2(32, r.size.y - 4.0)
 	var j := StickFigure.joints("idle", 0.0, t * 3.0, 1, false)
-	draw_set_transform(c, 0.0, Vector2(s, s))
-	StickFigure.draw_figure(self, j, Color(col.r, col.g, col.b, dim),
-		float(data.get("width", 5.0)) * 1.5, 0.55, data, t)
+	draw_set_transform(c, 0.0, Vector2(sc, sc))
+	StickFigure.draw_figure(self, j, Color(col.r, col.g, col.b, dim), 5.2 * 1.5, 0.55, preview, t)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 	var name_col: Color = col if owned else Color(0.5, 0.53, 0.64)
-	_text(f, r.position + Vector2(68, r.size.y * 0.5 - 2.0), str(data["name"]), 18, name_col)
-	_text(f, r.position + Vector2(68, r.size.y * 0.5 + 16.0), str(data["sub"]), 12,
+	_text(f, r.position + Vector2(66, r.size.y * 0.5 - 2.0), str(data.get("name", id)), 18, name_col)
+	_text(f, r.position + Vector2(66, r.size.y * 0.5 + 16.0), str(data.get("desc", "")), 12,
 		Color(0.72, 0.76, 0.9))
 
 	var label := ""
 	var lc := Color.WHITE
-	if Game.equipped_skin == id:
+	if Game.equipped_part(slot) == id:
 		label = "穿戴中"
 		lc = Color(0.5, 1.0, 0.65)
 	elif owned:
 		label = "已擁有"
 		lc = Color(0.75, 0.85, 1.0)
 	else:
-		var price: int = data["price"]
+		var price := Game.part_price(slot, id)
 		label = "%d 金幣" % price
 		lc = Color(1, 0.85, 0.4) if Game.coins >= price else Color(0.9, 0.45, 0.45)
 	var lw := f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
@@ -358,12 +414,26 @@ func _draw_element_preview(f: Font, r: Rect2, id: String) -> void:
 
 
 func _draw_skin_preview(f: Font, r: Rect2, id: String) -> void:
-	var data: Dictionary = Game.skin_data(id)
+	var slot := _slot()
+	var part: Dictionary = Game.part_data(slot, id)
+	# 預覽 = 目前完整穿著，但把正在挑選的部位換成游標所指的選項
+	var data := Game.build_look(Game.equipped)
+	data[slot] = id
 	var col: Color = data["body"]
-	_text(f, r.position + Vector2(28, 48), str(data["name"]), 28, col)
-	_text(f, r.position + Vector2(28, 74), str(data["sub"]), 14, Color(0.72, 0.76, 0.92))
-	draw_line(r.position + Vector2(28, 92), r.position + Vector2(r.size.x - 28, 92),
+
+	_text(f, r.position + Vector2(28, 44), "%s・%s" % [Game.SLOT_NAMES[slot],
+		str(part.get("name", id))], 26, col)
+	_text(f, r.position + Vector2(28, 70), str(part.get("desc", "")), 14, Color(0.72, 0.76, 0.92))
+	draw_line(r.position + Vector2(28, 88), r.position + Vector2(r.size.x - 28, 88),
 		Color(col.r, col.g, col.b, 0.35), 1.5)
+
+	# 目前完整搭配一覽
+	var parts_line := ""
+	for s in Game.PART_SLOTS:
+		var opt: String = id if s == slot else Game.equipped_part(s)
+		parts_line += "%s %s　" % [Game.SLOT_NAMES[s],
+			str(Game.part_data(s, opt).get("name", opt))]
+	_text(f, r.position + Vector2(28, 112), parts_line, 13, Color(0.68, 0.74, 0.9))
 
 	# 站台
 	var stage := Vector2(r.position.x + r.size.x * 0.5, r.position.y + r.size.y * 0.72)
@@ -386,15 +456,10 @@ func _draw_skin_preview(f: Font, r: Rect2, id: String) -> void:
 	var tags := []
 	if data.get("glow", false):
 		tags.append(["發光輪廓", Color(1, 0.9, 0.5)])
-	if data.get("trail", false):
-		tags.append(["高速殘影", Color(0.7, 0.9, 1.0)])
-	var acc: String = data.get("acc", "none")
-	var acc_names := {
-		"haori": "羽織", "scarf": "長巾", "horns": "犄角",
-		"wings": "雙翼", "halo": "光環",
-	}
-	if acc_names.has(acc):
-		tags.append([str(acc_names[acc]), Color(0.85, 0.8, 1.0)])
+	if float(data.get("limb_w", 1.0)) > 1.1:
+		tags.append(["體格強化", Color(1, 0.75, 0.6)])
+	if slot == "hands" and id == "heavy":
+		tags.append(["普攻更重", Color(1, 0.7, 0.5)])
 
 	var x := r.position.x + 28.0
 	var ty := r.end.y - 34.0

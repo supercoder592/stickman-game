@@ -42,19 +42,20 @@ func _run() -> void:
 	await get_tree().create_timer(0.3).timeout
 	await _shot("shop_element")
 
-	# 商店：造型分頁，每個造型各截一張預覽
+	# 商店：造型分頁 —— 五個部位各截一張，並買下部分部位組出一套
+	Game.coins = 99999
 	main.shop_screen.tab = main.shop_screen.Tab.SKIN
-	for si in Game.SKIN_ORDER.size():
-		main.shop_screen.index = si
+	var picks := {"head": 2, "chest": 2, "waist": 3, "legs": 2, "hands": 3}
+	for si in Game.PART_SLOTS.size():
+		var slot: String = Game.PART_SLOTS[si]
+		main.shop_screen.slot_index = si
+		main.shop_screen.index = int(picks[slot])
 		main.shop_screen._preview_t = 2.0      # 固定在勾拳姿勢，看得到拳套與配件
 		await get_tree().create_timer(0.35).timeout
-		await _shot("skin_%s" % Game.SKIN_ORDER[si])
-
-	# 換上「鴉羽」再進戰場
-	Game.coins = 99999
-	main.shop_screen.index = 5
-	main.shop_screen._confirm()
-	await get_tree().create_timer(0.2).timeout
+		await _shot("part_%s" % slot)
+		main.shop_screen._confirm()            # 買下並穿上，逐步組出整套
+		await get_tree().create_timer(0.2).timeout
+	await _shot("part_full")
 
 	# 選元素（玩家）
 	main._goto_select()
