@@ -8,13 +8,20 @@ signal battle_ready(my_element: String, foe_element: String, is_host: bool)
 
 enum Phase { MENU, CODE_INPUT, IP_INPUT, RELAY_ADDR, RELAY_CODE, WAITING, PICK }
 
-const MENU_ITEMS := [
-	"建立房間（區網）",
-	"加入房間（區網房號）",
-	"跨網連線（P2P，失敗自動轉中繼）",
-	"用 IP 連線",
-	"返回",
-]
+## 區網房號探索與 IP 直連都依賴 UDP／ENet，瀏覽器不支援，
+## 因此網頁版只保留 WebSocket 中繼這條路。
+static func menu_items() -> Array:
+	if OS.has_feature("web"):
+		return ["跨網連線（中繼伺服器）", "返回"]
+	return [
+		"建立房間（區網）",
+		"加入房間（區網房號）",
+		"跨網連線（P2P，失敗自動轉中繼）",
+		"用 IP 連線",
+		"返回",
+	]
+
+var MENU_ITEMS: Array = []
 
 var main = null
 var phase: int = Phase.MENU
@@ -23,6 +30,60 @@ var pick_index := 0
 var code_buf := ""
 var status := ""
 var t := 0.0
+var tap := TapRouter.new()
+
+
+## 觸控：選單項目、數字鍵盤、確定／返回鈕
+func _input(event: InputEvent) -> void:
+	if not visible:
+		return
+	var a := tap.hit(event)
+	if a == "":
+		return
+	if a.begins_with("menu"):
+		menu_index = int(a.substr(4))
+		_input_menu(_fake_key(KEY_ENTER))
+	elif a.begins_with("k"):
+		_type(a.substr(1))
+	elif a == "ok":
+		_type("\n")
+	elif a == "del":
+		code_buf = code_buf.substr(0, maxi(0, code_buf.length() - 1))
+	elif a == "back":
+		_input_menu(_fake_key(KEY_ESCAPE))
+	elif a.begins_with("elem"):
+		var i := int(a.substr(4))
+		if i == pick_index:
+			_input_pick(_fake_key(KEY_ENTER))
+		else:
+			pick_index = i
+			_push_pick()
+	get_viewport().set_input_as_handled()
+	queue_redraw()
+
+
+func _fake_key(code: int) -> InputEventKey:
+	var k := InputEventKey.new()
+	k.keycode = code
+	k.pressed = true
+	return k
+
+
+## 把觸控鍵盤的輸入導進既有的鍵盤處理流程
+func _type(ch: String) -> void:
+	var k := InputEventKey.new()
+	k.pressed = true
+	if ch == "\n":
+		k.keycode = KEY_ENTER
+	elif ch == ".":
+		k.keycode = KEY_PERIOD
+	else:
+		k.keycode = KEY_0 + int(ch)
+	match phase:
+		Phase.CODE_INPUT: _input_code(k)
+		Phase.IP_INPUT: _input_ip(k)
+		Phase.RELAY_ADDR: _input_relay_addr(k)
+		Phase.RELAY_CODE: _input_relay_code(k)
 
 
 func bind(m) -> void:
@@ -37,6 +98,7 @@ func bind(m) -> void:
 
 
 func on_shown() -> void:
+	MENU_ITEMS = menu_items()
 	phase = Phase.MENU
 	menu_index = 0
 	code_buf = ""
@@ -128,23 +190,24 @@ func _input_menu(k: InputEventKey) -> void:
 		KEY_S, KEY_DOWN:
 			menu_index = (menu_index + 1) % MENU_ITEMS.size()
 		KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
-			match menu_index:
-				0:
+			# 用項目名稱分派，因為網頁版的選單較短、索引會位移
+			match str(MENU_ITEMS[menu_index]):
+				"建立房間（區網）":
 					status = "建立房間中…"
 					Net.host_room()
-				1:
+				"加入房間（區網房號）":
 					phase = Phase.CODE_INPUT
 					code_buf = ""
 					status = "輸入 4 位數房號"
-				2:
+				"跨網連線（P2P，失敗自動轉中繼）", "跨網連線（中繼伺服器）":
 					phase = Phase.RELAY_ADDR
 					code_buf = Game.relay_address
 					status = "輸入中繼伺服器位址（雙方輸入同一台）"
-				3:
+				"用 IP 連線":
 					phase = Phase.IP_INPUT
 					code_buf = ""
 					status = "輸入主機的 IP（房號搜尋失敗時用這個）"
-				4:
+				"返回":
 					Net.shutdown()
 					cancelled.emit()
 		KEY_ESCAPE:
@@ -271,6 +334,7 @@ func _draw() -> void:
 		return
 	var w := size.x
 	var h := size.y
+	tap.begin()
 
 	var bands := 20
 	for i in bands:
@@ -303,9 +367,51 @@ func _draw() -> void:
 		Phase.PICK:
 			_draw_pick(f, w, h)
 
+	# 輸入類畫面附上觸控數字鍵盤（手機沒有實體鍵盤）
+	if phase in [Phase.CODE_INPUT, Phase.IP_INPUT, Phase.RELAY_CODE]:
+		_draw_keypad(f, w, h, phase == Phase.IP_INPUT)
+
 	if status != "":
 		var sw := f.get_string_size(status, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
 		_text(f, Vector2(w * 0.5 - sw * 0.5, h - 52.0), status, 16, Color(0.9, 0.86, 0.6))
+
+	tap.commit()
+
+
+## 觸控數字鍵盤：3×4 排列，含小數點（IP 用）、刪除、確定
+func _draw_keypad(f: Font, w: float, h: float, with_dot: bool) -> void:
+	var keys := ["1", "2", "3", "4", "5", "6", "7", "8", "9",
+		"." if with_dot else "", "0", "⌫"]
+	var bw := 84.0
+	var bh := 56.0
+	var gap := 10.0
+	var total_w := bw * 3.0 + gap * 2.0
+	var x0 := w * 0.5 - total_w * 0.5
+	var y0 := h * 0.60
+	for i in keys.size():
+		var label: String = keys[i]
+		if label == "":
+			continue
+		var r := Rect2(x0 + float(i % 3) * (bw + gap), y0 + float(i / 3) * (bh + gap), bw, bh)
+		draw_rect(r, Color(0.10, 0.12, 0.19, 0.95))
+		draw_rect(r, Color(0.45, 0.55, 0.78, 0.6), false, 1.6)
+		var lw := f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 26).x
+		_text(f, r.position + Vector2(bw * 0.5 - lw * 0.5, 38.0), label, 26, Color(0.9, 0.94, 1.0))
+		tap.add(r, "del" if label == "⌫" else "k" + label)
+
+	var ok := Rect2(x0 + total_w + gap * 2.0, y0, 120.0, bh * 2.0 + gap)
+	draw_rect(ok, Color(0.2, 0.45, 0.32, 0.92))
+	draw_rect(ok, Color(0.5, 1.0, 0.7, 0.75), false, 2.0)
+	var okw := f.get_string_size("連線", HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x
+	_text(f, ok.position + Vector2(60.0 - okw * 0.5, bh + 4.0), "連線", 24, Color(0.9, 1.0, 0.95))
+	tap.add(ok, "ok")
+
+	var bk := Rect2(x0 - 140.0, y0, 120.0, bh)
+	draw_rect(bk, Color(0.16, 0.17, 0.24, 0.92))
+	draw_rect(bk, Color(0.5, 0.55, 0.72, 0.6), false, 1.6)
+	var bkw := f.get_string_size("返回", HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
+	_text(f, bk.position + Vector2(60.0 - bkw * 0.5, 36.0), "返回", 22, Color(0.8, 0.84, 0.95))
+	tap.add(bk, "back")
 
 
 func _draw_menu(f: Font, w: float, h: float) -> void:
@@ -321,6 +427,7 @@ func _draw_menu(f: Font, w: float, h: float) -> void:
 			draw_rect(Rect2(x - 34.0, y - 26.0, lw + 68.0, 40.0), Color(0.6, 0.7, 1.0, pulse), false, 2.0)
 		var col: Color = Color(1, 1, 1) if sel else Color(0.68, 0.72, 0.88)
 		_text(f, Vector2(x, y), MENU_ITEMS[i], sz, col)
+		tap.add(Rect2(w * 0.5 - 280.0, y - 30.0, 560.0, 48.0), "menu%d" % i)
 		y += 54.0
 
 
@@ -484,6 +591,7 @@ func _draw_pick(f: Font, w: float, h: float) -> void:
 		var name_col: Color = col if owned else Color(0.5, 0.53, 0.64)
 		_text(f, r.position + Vector2(56, r.size.y * 0.5 + 6.0),
 			"%s　%s" % [data["name"], data["tagline"]], 17, name_col)
+		tap.add(r.grow(3.0), "elem%d" % i)
 		if not owned:
 			var lk := "商店未解鎖"
 			var lw2 := f.get_string_size(lk, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x

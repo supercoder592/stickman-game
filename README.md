@@ -63,11 +63,32 @@ godot --headless --path . --export-release "Web" ../build/web/index.html
 ### 啟動中繼伺服器
 
 ```bash
-godot --headless --path . -- --relay        # 監聽連接埠 24570
+godot --headless --path . -- --relay        # WebSocket，監聽 24570（或環境變數 PORT）
 ```
 
-把它跑在有公開 IP 的機器上（VPS、或自己 PC 但把 24570 轉發出去）。
-一台中繼可同時服務多個房間。
+中繼採用 **WebSocket** 而非 ENet —— 瀏覽器只能用 WebSocket，
+統一成一種傳輸後桌機與網頁版走同一條路，不必維護兩套。
+ENet 只保留給區網直連與 P2P 打洞（那兩者本來就只在原生平台可用）。
+
+一台中繼可同時服務多個房間。也可以用容器部署：
+
+```bash
+docker build -f deploy/Dockerfile -t stickman-relay .
+docker run -p 24570:24570 stickman-relay
+```
+
+**網頁版必須用 `wss://`**（加密）。GitHub Pages 是 HTTPS，
+瀏覽器會拒絕從 HTTPS 頁面連到未加密的 `ws://`。
+免費平台（Render / Railway / Fly.io）會自動附上 TLS 憑證並提供 `wss://` 網址，
+把該網址填進遊戲的「中繼伺服器位址」即可。
+
+位址欄位接受三種寫法：
+
+| 輸入 | 實際連線 |
+| --- | --- |
+| `example.com` | `ws://example.com:24570` |
+| `192.168.1.5:9000` | `ws://192.168.1.5:9000` |
+| `wss://relay.example.com` | 原樣使用（雲端平台用這種） |
 
 ### 玩家端
 

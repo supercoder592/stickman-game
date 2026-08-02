@@ -9,11 +9,11 @@ signal online_pressed()
 signal shop_pressed()
 signal quit_pressed()
 
-## 瀏覽器不支援 ENet（UDP），連線對戰無法運作，因此網頁版隱藏該選項；
-## 同樣地網頁版沒有「離開遊戲」的意義，一併移除。
+## 網頁版可透過 WebSocket 中繼連線（區網房號與 P2P 打洞需要 UDP，瀏覽器不支援）；
+## 另外網頁版沒有「離開遊戲」的意義，故移除。
 static func menu_items() -> Array:
 	if OS.has_feature("web"):
-		return ["單機對戰", "商店", "操作說明"]
+		return ["單機對戰", "連線對戰", "商店", "操作說明"]
 	return ["單機對戰", "連線對戰", "商店", "操作說明", "離開遊戲"]
 
 var ITEMS: Array = []
@@ -119,7 +119,7 @@ func _draw() -> void:
 	var foot := "%d 勝　·　%d 金幣　·　造型：%s　·　手機模式：%s（F5 切換）" \
 		% [Game.wins, Game.coins, skin_name, mob]
 	if OS.has_feature("web"):
-		foot += "　·　網頁版不支援連線對戰"
+		foot += "　·　網頁版連線需填 wss:// 中繼位址"
 	var fw := f.get_string_size(foot, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 	_text(f, Vector2(w * 0.5 - fw * 0.5, h - 30.0), foot, 14, Color(0.6, 0.66, 0.85))
 

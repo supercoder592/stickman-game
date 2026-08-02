@@ -204,12 +204,22 @@ func join_by_ip(ip: String) -> void:
 ## 遊戲協定完全不變，主機權威模型照舊 —— 房內第一位是主機，第二位是客戶端。
 
 ## 以中繼伺服器身分啟動（由 main.gd 在偵測到 --relay 時呼叫）
+##
+## 中繼採用 WebSocket 而非 ENet，理由是瀏覽器只能用 WebSocket ——
+## 統一成一種傳輸後，桌機與網頁版走同一條路，不必維護兩套中繼。
+## ENet 只保留給區網直連與 P2P 打洞（那兩者本來就只在原生平台可用）。
 func start_relay_server() -> bool:
 	relay_mode = true
-	var peer := ENetMultiplayerPeer.new()
-	var err := peer.create_server(RELAY_PORT, MAX_RELAY_PEERS)
+	# 雲端平台（Render / Railway / Fly.io…）會用 PORT 環境變數指定要監聽的連接埠
+	var port := RELAY_PORT
+	var env_port := OS.get_environment("PORT")
+	if env_port != "" and env_port.is_valid_int():
+		port = int(env_port)
+
+	var peer := WebSocketMultiplayerPeer.new()
+	var err := peer.create_server(port)
 	if err != OK:
-		push_error("中繼伺服器無法綁定連接埠 %d" % RELAY_PORT)
+		push_error("中繼伺服器無法綁定連接埠 %d" % port)
 		return false
 	multiplayer.multiplayer_peer = peer
 
@@ -220,7 +230,7 @@ func start_relay_server() -> bool:
 		_rv = null
 
 	set_process(true)
-	print("[relay] 中繼伺服器已啟動，連接埠 ", RELAY_PORT)
+	print("[relay] 中繼伺服器已啟動（WebSocket），連接埠 ", port)
 	if _rv:
 		print("[relay] P2P 牽線伺服器已啟動，連接埠 ", RENDEZVOUS_PORT)
 	return true
@@ -272,6 +282,10 @@ func _poll_rendezvous() -> void:
 ##   3. 兩邊用「同一個」socket 互相狂送封包 → 各自的 NAT 打開回程通道
 ##   4. 收到對方封包後關閉 UDP，改用同一個本地連接埠 L 建立 ENet 連線
 func join_via_p2p(server_addr: String, code: String) -> void:
+	# 瀏覽器沒有 UDP，打不了洞；直接走 WebSocket 中繼
+	if OS.has_feature("web"):
+		join_via_relay(server_addr, code)
+		return
 	shutdown()
 	transport = Transport.P2P
 	room_code = code
@@ -386,18 +400,34 @@ func _p2p_cleanup() -> void:
 	_p2p_t = 0.0
 
 
+## 把使用者輸入的位址轉成 WebSocket 網址。
+## 允許三種寫法：
+##   example.com            → ws://example.com:24570
+##   wss://relay.foo.com    → 原樣使用（雲端平台通常是 443 埠的 wss）
+##   192.168.1.5:9000       → ws://192.168.1.5:9000
+## 網頁版若由 HTTPS 提供，瀏覽器會拒絕不加密的 ws://，必須填 wss:// 開頭的網址。
+static func relay_url(addr: String) -> String:
+	var a := addr.strip_edges()
+	if a.begins_with("ws://") or a.begins_with("wss://"):
+		return a
+	if a.contains(":"):
+		return "ws://" + a
+	return "ws://%s:%d" % [a, RELAY_PORT]
+
+
 func _relay_connect(addr: String, code: String) -> void:
 	shutdown()
 	transport = Transport.RELAY
 	room_code = code
-	var peer := ENetMultiplayerPeer.new()
-	var err := peer.create_client(addr, RELAY_PORT)
+	var url := relay_url(addr)
+	var peer := WebSocketMultiplayerPeer.new()
+	var err := peer.create_client(url)
 	if err != OK:
-		join_failed.emit("無法連線到中繼伺服器 %s" % addr)
+		join_failed.emit("無法連線到中繼伺服器 %s" % url)
 		shutdown()
 		return
 	multiplayer.multiplayer_peer = peer
-	_connect_timeout = 8.0
+	_connect_timeout = 12.0        # WebSocket 握手較久，逾時放寬
 	set_process(true)
 
 
