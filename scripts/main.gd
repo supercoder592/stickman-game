@@ -30,6 +30,15 @@ func _ready() -> void:
 			Net.start_relay_server()
 			return
 
+	# 開機診斷：把關鍵狀態印到（網頁版的）console，
+	# 遇到「畫面空白」時能直接看出是哪一步失敗，而不必靠猜。
+	print("[boot] Godot %s / 渲染器 %s" % [
+		Engine.get_version_info().string,
+		ProjectSettings.get_setting("rendering/renderer/rendering_method", "?")])
+	print("[boot] web=%s  觸控=%s  字型=%s" % [
+		OS.has_feature("web"), DisplayServer.is_touchscreen_available(),
+		"OK" if Game.ui_font != null else "NULL（畫面會空白）"])
+
 	ui = CanvasLayer.new()
 	ui.name = "UI"
 	ui.layer = 10

@@ -97,11 +97,27 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # ------------------------------------------------------------------ 繪製
 func _draw() -> void:
-	var f: Font = Game.ui_font
-	if f == null:
-		return
 	var w := size.x
 	var h := size.y
+	var f: Font = Game.ui_font
+	if f == null:
+		# 字型載入失敗時仍要畫出東西 —— 直接 return 會讓整個畫面全黑，
+		# 使用者只會看到「網頁空白」而完全無從判斷發生什麼事。
+		# 這裡改用引擎內建字型把原因寫在畫面上，讓問題自己說話。
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.10, 0.04, 0.06))
+		var fb := ThemeDB.fallback_font
+		if fb != null:
+			draw_string(fb, Vector2(40, h * 0.5 - 20), "FONT LOAD FAILED",
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 32, Color(1, 0.5, 0.5))
+			draw_string(fb, Vector2(40, h * 0.5 + 20),
+				"ui_font is null - bundled font missing from export",
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1, 0.8, 0.8))
+		else:
+			# 連內建字型都沒有：用色塊表示，至少不是一片空白
+			for i in 5:
+				draw_rect(Rect2(w * 0.5 - 150.0 + float(i) * 62.0, h * 0.5 - 30.0, 50.0, 60.0),
+					Color(0.9, 0.2, 0.2))
+		return
 
 	tap.begin()
 	_draw_background(w, h)
@@ -120,6 +136,17 @@ func _draw() -> void:
 		% [Game.wins, Game.coins, skin_name, mob]
 	if OS.has_feature("web"):
 		foot += "　·　網頁版連線需填 wss:// 中繼位址"
+
+	# 開機診斷橫幅：前 12 秒顯示在畫面頂端。
+	# 手機瀏覽器沒有 console 可看，遇到問題時這是唯一能回報的線索。
+	if t < 12.0:
+		var diag := "BOOT  渲染器=%s  web=%s  觸控=%s  字型=%s  版本=%s" % [
+			ProjectSettings.get_setting("rendering/renderer/rendering_method", "?"),
+			OS.has_feature("web"), DisplayServer.is_touchscreen_available(),
+			"OK" if Game.ui_font != null else "NULL",
+			Engine.get_version_info().string]
+		draw_rect(Rect2(0, 0, w, 26), Color(0.05, 0.06, 0.1, 0.85))
+		_text(f, Vector2(10, 18), diag, 13, Color(0.6, 1.0, 0.7))
 	var fw := f.get_string_size(foot, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 	_text(f, Vector2(w * 0.5 - fw * 0.5, h - 30.0), foot, 14, Color(0.6, 0.66, 0.85))
 

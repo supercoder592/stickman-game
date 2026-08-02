@@ -291,16 +291,16 @@ func toggle_mobile_mode() -> void:
 ## Godot 內建預設字型不含中文字符。
 ## 優先使用專案內建的 Noto Sans TC —— 網頁版沒有系統字型可讀，
 ## 不內建的話整個介面會變成空白方塊。桌機找不到內建字型時再退回系統字型。
-const BUNDLED_FONT := "res://assets/fonts/NotoSansTC.ttf"
+## 必須用 preload 而非 load：
+## 匯出器只會追蹤靜態相依，用字串 load() 的資源掃不到，
+## 結果字型不會被打包進 pck —— 網頁版沒有系統字型可退，
+## ui_font 變成 null，而所有畫面的 _draw() 開頭都會因此直接 return，整片空白。
+const BUNDLED_FONT: FontFile = preload("res://assets/fonts/NotoSansTC.ttf")
 
 
 func _load_cjk_font() -> Font:
-	if ResourceLoader.exists(BUNDLED_FONT):
-		var bundled = load(BUNDLED_FONT)
-		if bundled is Font:
-			return bundled
-		if bundled is FontFile:
-			return bundled
+	if BUNDLED_FONT != null:
+		return BUNDLED_FONT
 
 	var candidates := [
 		"C:/Windows/Fonts/msjh.ttc",      # 微軟正黑體
@@ -319,7 +319,11 @@ func _load_cjk_font() -> Font:
 			f.multichannel_signed_distance_field = false
 			return f
 	push_warning("找不到中日韓字型，介面中文可能無法顯示。")
-	return ThemeDB.fallback_font
+	# 最後防線：ui_font 絕對不能是 null，否則所有 _draw() 會直接 return 而畫面全黑
+	var fallback := ThemeDB.fallback_font
+	if fallback == null:
+		fallback = SystemFont.new()
+	return fallback
 
 
 # ---------------------------------------------------------------- 查詢
