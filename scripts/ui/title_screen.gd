@@ -9,7 +9,14 @@ signal online_pressed()
 signal shop_pressed()
 signal quit_pressed()
 
-const ITEMS := ["單機對戰", "連線對戰", "商店", "操作說明", "離開遊戲"]
+## 瀏覽器不支援 ENet（UDP），連線對戰無法運作，因此網頁版隱藏該選項；
+## 同樣地網頁版沒有「離開遊戲」的意義，一併移除。
+static func menu_items() -> Array:
+	if OS.has_feature("web"):
+		return ["單機對戰", "商店", "操作說明"]
+	return ["單機對戰", "連線對戰", "商店", "操作說明", "離開遊戲"]
+
+var ITEMS: Array = []
 
 var main = null
 var index := 0
@@ -19,9 +26,12 @@ var show_help := false
 
 func bind(m) -> void:
 	main = m
+	ITEMS = menu_items()
 
 
 func on_shown() -> void:
+	if ITEMS.is_empty():
+		ITEMS = menu_items()
 	index = 0
 	show_help = false
 
@@ -47,12 +57,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_S, KEY_DOWN:
 			index = (index + 1) % ITEMS.size()
 		KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
-			match index:
-				0: start_pressed.emit()
-				1: online_pressed.emit()
-				2: shop_pressed.emit()
-				3: show_help = true
-				4: quit_pressed.emit()
+			# 用項目名稱分派，因為網頁版的選單少兩項、索引會位移
+			match str(ITEMS[index]):
+				"單機對戰": start_pressed.emit()
+				"連線對戰": online_pressed.emit()
+				"商店": shop_pressed.emit()
+				"操作說明": show_help = true
+				"離開遊戲": quit_pressed.emit()
 		KEY_ESCAPE:
 			quit_pressed.emit()
 		KEY_F5:
@@ -82,6 +93,8 @@ func _draw() -> void:
 	var mob: String = "開" if Game.mobile_mode else "關"
 	var foot := "%d 勝　·　%d 金幣　·　造型：%s　·　手機模式：%s（F5 切換）" \
 		% [Game.wins, Game.coins, skin_name, mob]
+	if OS.has_feature("web"):
+		foot += "　·　網頁版不支援連線對戰"
 	var fw := f.get_string_size(foot, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 	_text(f, Vector2(w * 0.5 - fw * 0.5, h - 30.0), foot, 14, Color(0.6, 0.66, 0.85))
 

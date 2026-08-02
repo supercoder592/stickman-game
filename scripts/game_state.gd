@@ -199,8 +199,20 @@ func toggle_mobile_mode() -> void:
 
 
 # ---------------------------------------------------------------- 字型
-## Godot 內建預設字型不含中文字符，這裡優先掛載系統的中日韓字型。
+## Godot 內建預設字型不含中文字符。
+## 優先使用專案內建的 Noto Sans TC —— 網頁版沒有系統字型可讀，
+## 不內建的話整個介面會變成空白方塊。桌機找不到內建字型時再退回系統字型。
+const BUNDLED_FONT := "res://assets/fonts/NotoSansTC.ttf"
+
+
 func _load_cjk_font() -> Font:
+	if ResourceLoader.exists(BUNDLED_FONT):
+		var bundled = load(BUNDLED_FONT)
+		if bundled is Font:
+			return bundled
+		if bundled is FontFile:
+			return bundled
+
 	var candidates := [
 		"C:/Windows/Fonts/msjh.ttc",      # 微軟正黑體
 		"C:/Windows/Fonts/msjhbd.ttc",
