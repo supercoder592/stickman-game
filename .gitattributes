@@ -1,0 +1,7 @@
+# 統一使用 LF，避免在不同作業系統間協作時整份檔案被判定為變更
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ttf binary
+*.ttc binary

@@ -1,0 +1,10 @@
+# Godot 4 匯入快取與編輯器暫存
+.godot/
+*.translation
+
+# 匯出產物
+/build/
+/export/
+
+# 開發用截圖（可由 dev/shot.tscn 重新產生）
+dev/shots/
