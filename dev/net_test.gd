@@ -8,6 +8,7 @@ extends Node
 const CODE := "1234"
 
 var role := "host"
+var relay_addr := "127.0.0.1"
 var t := 0.0
 var started := false
 var main = null
@@ -18,6 +19,8 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--role="):
 			role = a.split("=")[1]
+		elif a.begins_with("--addr="):
+			relay_addr = a.split("=", true, 1)[1]
 	print("[net] 角色 = ", role)
 
 	Game.unlock_all_debug()
@@ -42,12 +45,14 @@ func _ready() -> void:
 			Net.join_room(CODE)
 		# --- 跨網（中繼）路徑：兩邊都連同一台中繼、同一組房號，先到的當主機 ---
 		"relay_a":
-			print("[net] A 連往中繼 127.0.0.1 房號 ", CODE)
-			Net.join_via_relay("127.0.0.1", CODE)
+			print("[net] A 連往中繼 %s（實際 URL：%s）房號 %s"
+				% [relay_addr, Net.relay_url(relay_addr), CODE])
+			Net.join_via_relay(relay_addr, CODE)
 		"relay_b":
 			await get_tree().create_timer(1.5).timeout
-			print("[net] B 連往中繼 127.0.0.1 房號 ", CODE)
-			Net.join_via_relay("127.0.0.1", CODE)
+			print("[net] B 連往中繼 %s（實際 URL：%s）房號 %s"
+				% [relay_addr, Net.relay_url(relay_addr), CODE])
+			Net.join_via_relay(relay_addr, CODE)
 		# --- P2P 打洞路徑（本機只能驗協定流程，無法驗真實 NAT）---
 		"p2p_a":
 			print("[net] A 透過牽線伺服器打洞，房號 ", CODE)
