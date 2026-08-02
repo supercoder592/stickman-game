@@ -287,11 +287,13 @@ func _draw_skin_row(f: Font, r: Rect2, id: String, selected: bool) -> void:
 
 	var dim: float = 1.0 if owned else 0.4
 	# 縮小版的火柴人當作圖示
-	var c := r.position + Vector2(34, r.size.y - 6.0)
+	# 圖示縮放依行高計算，否則造型一多、行高被壓縮時圖示會溢出到上一行
+	var s: float = clampf((r.size.y - 6.0) / 86.0, 0.26, 0.5)
+	var c := r.position + Vector2(34, r.size.y - 4.0)
 	var j := StickFigure.joints("idle", 0.0, t * 3.0, 1, false)
-	draw_set_transform(c, 0.0, Vector2(0.55, 0.55))
+	draw_set_transform(c, 0.0, Vector2(s, s))
 	StickFigure.draw_figure(self, j, Color(col.r, col.g, col.b, dim),
-		float(data.get("width", 5.0)) * 1.4, 0.55, data, t)
+		float(data.get("width", 5.0)) * 1.5, 0.55, data, t)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 	var name_col: Color = col if owned else Color(0.5, 0.53, 0.64)

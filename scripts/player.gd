@@ -230,14 +230,37 @@ func _punch_hit() -> void:
 	var origin := global_position + Vector2(f * 40.0, -46.0)
 	var rect_x: float = -46.0 if f < 0.0 else -6.0
 	var rect := Rect2(origin + Vector2(rect_x, -26.0), Vector2(52.0, 52.0))
+	# 戴拳套的造型：普攻更重、命中帶灼燒，並拖出元素色火焰
+	var gloved: bool = skin.get("acc", "") == "gauntlets"
+	var punch_col := Color(1, 1, 1)
+	var dmg := PUNCH_DAMAGE
+	var kb_x := 260.0
+	if gloved:
+		punch_col = skin.get("accent", Color(1, 1, 1))
+		dmg = PUNCH_DAMAGE * 1.45
+		kb_x = 330.0
+
 	var hit := false
 	for e in arena.fighters_of_other_team(team):
 		if e.body_rect().intersects(rect):
-			e.take_damage(PUNCH_DAMAGE, Vector2(f * 260.0, -180.0), {"color": Color(1, 1, 1), "stun": 0.1})
+			var opts := {"color": punch_col, "stun": 0.1}
+			if gloved:
+				opts["burn"] = [1.6, 6.0]
+			e.take_damage(dmg, Vector2(f * kb_x, -180.0), opts)
 			hit = true
+
+	if gloved:
+		Fx.particles(arena.fx_front, origin, {
+			"amount": 16, "lifetime": 0.4, "vmin": 90.0, "vmax": 330.0, "spread": 32.0,
+			"direction": Vector2(f, -0.15), "gravity": Vector2(0, -120),
+			"smin": 0.2, "smax": 0.6, "additive": true,
+			"colors": [Color(1, 0.95, 0.7, 1), punch_col, Color(punch_col.r, punch_col.g, punch_col.b, 0)],
+		})
 	if hit:
-		Fx.spark(arena.fx_front, origin, Color(1, 1, 1), 24.0)
-		arena.shake(3.0, 0.1)
+		var spark_size: float = 34.0 if gloved else 24.0
+		var shake_amt: float = 5.0 if gloved else 3.0
+		Fx.spark(arena.fx_front, origin, punch_col, spark_size)
+		arena.shake(shake_amt, 0.1)
 	else:
 		Fx.particles(arena.fx_front, origin, {
 			"amount": 5, "lifetime": 0.2, "vmin": 60.0, "vmax": 160.0, "spread": 40.0,

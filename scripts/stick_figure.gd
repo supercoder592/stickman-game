@@ -187,28 +187,49 @@ static func _dir(a: float, f: float) -> Vector2:
 
 ## 繪製骨架。back_fade 讓後側肢體稍暗，產生層次感。
 ## skin 為造型資料（Game.SKINS 的一筆），phase 用來讓布料／光暈隨時間擺動。
-static func draw_figure(ci: CanvasItem, j: Dictionary, col: Color, width := 5.0,
+static func draw_figure(ci: CanvasItem, j_in: Dictionary, col: Color, width := 5.0,
 		back_fade := 0.55, skin: Dictionary = {}, phase := 0.0) -> void:
 	var accent: Color = skin.get("accent", Color(0.6, 0.7, 0.9))
 	accent.a = col.a
 	var head_style: String = skin.get("head", "circle")
 	var acc: String = skin.get("acc", "none")
 
+	# 體型：整體大小與四肢粗細。
+	# 這是造型「遠看能不能分辨」的關鍵 —— 只換顏色與小配件在戰鬥尺寸下幾乎看不出差別，
+	# 剪影本身不同才有辨識度。
+	var build: float = skin.get("build", 1.0)
+	var j := _scaled(j_in, build)
+	var head_r: float = HEAD_R * build * float(skin.get("head_r", 1.0))
+	var w: float = width * build * float(skin.get("limb_w", 1.0))
+
 	# 光暈：先在底層畫一次加粗的半透明輪廓（不能太粗，否則整個人糊成一團）
 	if skin.get("glow", false):
 		var g := Color(accent.r, accent.g, accent.b, col.a * 0.14)
-		_draw_bones(ci, j, g, g, width * 2.1)
-		ci.draw_circle(j["head"], HEAD_R * 1.5, g)
+		_draw_bones(ci, j, g, g, w * 2.1)
+		ci.draw_circle(j["head"], head_r * 1.5, g)
 
-	# 背後配件（羽織、雙翼）畫在身體之前
-	_draw_accessory_back(ci, j, acc, col, accent, phase)
+	# 背後配件（羽織、雙翼、披風、雙刀）畫在身體之前
+	_draw_accessory_back(ci, j, acc, col, accent, phase, build)
 
 	var back := Color(col.r * back_fade, col.g * back_fade, col.b * back_fade, col.a)
-	_draw_bones(ci, j, col, back, width)
-	_draw_head(ci, j, head_style, col, accent, width)
+	_draw_bones(ci, j, col, back, w)
+	_draw_head(ci, j, head_style, col, accent, head_r)
 
-	# 身前配件（長巾、犄角、光環）
-	_draw_accessory_front(ci, j, acc, col, accent, phase)
+	# 身前配件（長巾、犄角、光環、護甲、尾巴）
+	_draw_accessory_front(ci, j, acc, col, accent, phase, build, head_r)
+
+
+## 依體型倍率縮放所有關節座標（腳底為原點，因此直接乘即可）
+static func _scaled(j: Dictionary, s: float) -> Dictionary:
+	if is_equal_approx(s, 1.0):
+		return j
+	var out := {}
+	for k in j:
+		if k == "facing":
+			out[k] = j[k]
+		else:
+			out[k] = (j[k] as Vector2) * s
+	return out
 
 
 static func _draw_bones(ci: CanvasItem, j: Dictionary, col: Color, back: Color, width: float) -> void:
@@ -224,56 +245,102 @@ static func _draw_bones(ci: CanvasItem, j: Dictionary, col: Color, back: Color, 
 
 
 static func _draw_head(ci: CanvasItem, j: Dictionary, style: String,
-		col: Color, accent: Color, width: float) -> void:
+		col: Color, accent: Color, r: float) -> void:
 	var h: Vector2 = j["head"]
 	var f: float = j["facing"]
 	match style:
 		"square":
-			var r := HEAD_R * 0.95
+			var s := r * 0.95
 			ci.draw_colored_polygon(PackedVector2Array([
-				h + Vector2(-r, -r), h + Vector2(r, -r), h + Vector2(r, r), h + Vector2(-r, r),
+				h + Vector2(-s, -s), h + Vector2(s, -s), h + Vector2(s, s), h + Vector2(-s, s),
 			]), col)
 		"helm":
-			ci.draw_circle(h, HEAD_R, col)
+			ci.draw_circle(h, r, col)
 			# 面甲橫條 + 頭冠
-			ci.draw_line(h + Vector2(-HEAD_R * 0.95, 1.5), h + Vector2(HEAD_R * 0.95, 1.5),
-				Color(0.08, 0.08, 0.12, col.a), 3.4, true)
+			ci.draw_line(h + Vector2(-r * 0.95, r * 0.15), h + Vector2(r * 0.95, r * 0.15),
+				Color(0.08, 0.08, 0.12, col.a), r * 0.34, true)
 			ci.draw_colored_polygon(PackedVector2Array([
-				h + Vector2(-2.5, -HEAD_R), h + Vector2(2.5, -HEAD_R),
-				h + Vector2(0, -HEAD_R - 11.0),
+				h + Vector2(-r * 0.25, -r), h + Vector2(r * 0.25, -r),
+				h + Vector2(0, -r - r * 1.1),
 			]), accent)
 		"hood":
 			# 兜帽：頭後方一片較大的布
 			ci.draw_colored_polygon(PackedVector2Array([
-				h + Vector2(-f * 3.0, -HEAD_R - 5.0),
-				h + Vector2(-f * 15.0, -HEAD_R + 2.0),
-				h + Vector2(-f * 13.0, HEAD_R + 7.0),
-				h + Vector2(f * 4.0, HEAD_R + 3.0),
+				h + Vector2(-f * r * 0.3, -r - r * 0.5),
+				h + Vector2(-f * r * 1.5, -r + r * 0.2),
+				h + Vector2(-f * r * 1.3, r + r * 0.7),
+				h + Vector2(f * r * 0.4, r + r * 0.3),
 			]), Color(col.r * 0.7, col.g * 0.7, col.b * 0.75, col.a))
-			ci.draw_circle(h, HEAD_R, col)
+			ci.draw_circle(h, r, col)
 		"skull":
-			ci.draw_circle(h, HEAD_R, col)
+			ci.draw_circle(h, r, col)
 			# 兩個深色眼窩 + 下顎線
-			ci.draw_circle(h + Vector2(f * 3.6, -1.5), 2.8, Color(0.1, 0.05, 0.08, col.a))
-			ci.draw_circle(h + Vector2(-f * 3.2, -1.5), 2.4, Color(0.1, 0.05, 0.08, col.a))
-			ci.draw_line(h + Vector2(-HEAD_R * 0.6, HEAD_R * 0.55),
-				h + Vector2(HEAD_R * 0.6, HEAD_R * 0.55),
-				Color(0.15, 0.08, 0.1, col.a * 0.8), 1.8, true)
+			ci.draw_circle(h + Vector2(f * r * 0.36, -r * 0.15), r * 0.28, Color(0.1, 0.05, 0.08, col.a))
+			ci.draw_circle(h + Vector2(-f * r * 0.32, -r * 0.15), r * 0.24, Color(0.1, 0.05, 0.08, col.a))
+			for i in 4:
+				var x := (float(i) - 1.5) * r * 0.34
+				ci.draw_line(h + Vector2(x, r * 0.4), h + Vector2(x, r * 0.85),
+					Color(0.15, 0.08, 0.1, col.a * 0.85), 1.6, true)
 		"topknot":
-			ci.draw_circle(h, HEAD_R, col)
-			# 頭頂髮髻：貼著頭頂，束起的髮尾往後翹
-			var knot := h + Vector2(-f * 1.5, -HEAD_R - 1.5)
-			ci.draw_circle(knot, 4.2, accent)
-			ci.draw_line(knot, knot + Vector2(-f * 9.0, -5.0), accent, 2.6, true)
+			ci.draw_circle(h, r, col)
+			var knot := h + Vector2(-f * r * 0.15, -r - r * 0.15)
+			ci.draw_circle(knot, r * 0.42, accent)
+			ci.draw_line(knot, knot + Vector2(-f * r * 0.9, -r * 0.5), accent, r * 0.26, true)
+		"flame_hair":
+			ci.draw_circle(h, r, col)
+			# 尖銳的火焰狀頭髮，往後上方竄
+			for i in 5:
+				var u := float(i) / 4.0
+				var base := h + Vector2(lerpf(r * 0.5, -r * 0.9, u) * f, -r * 0.55 - u * r * 0.25)
+				var tip := base + Vector2(-f * (r * 0.5 + u * r * 0.9), -r * (1.5 - u * 0.7))
+				ci.draw_colored_polygon(PackedVector2Array([
+					base + Vector2(-f * r * 0.22, r * 0.1),
+					base + Vector2(f * r * 0.22, 0.0),
+					tip,
+				]), accent)
+		"mask":
+			ci.draw_circle(h, r, col)
+			# 般若面具：深色底 + 兩道紅色眼縫
+			ci.draw_colored_polygon(PackedVector2Array([
+				h + Vector2(f * r * 0.95, -r * 0.35), h + Vector2(-f * r * 0.7, -r * 0.5),
+				h + Vector2(-f * r * 0.75, r * 0.55), h + Vector2(f * r * 0.85, r * 0.7),
+			]), Color(0.1, 0.09, 0.13, col.a))
+			ci.draw_line(h + Vector2(f * r * 0.15, -r * 0.1), h + Vector2(f * r * 0.8, -r * 0.25),
+				accent, r * 0.2, true)
+			ci.draw_line(h + Vector2(-f * r * 0.55, -r * 0.05), h + Vector2(-f * r * 0.15, -r * 0.18),
+				accent, r * 0.16, true)
 		_:
-			ci.draw_circle(h, HEAD_R, col)
+			ci.draw_circle(h, r, col)
 
 
 static func _draw_accessory_back(ci: CanvasItem, j: Dictionary, acc: String,
-		col: Color, accent: Color, phase: float) -> void:
+		col: Color, accent: Color, phase: float, b := 1.0) -> void:
 	var sh: Vector2 = j["shoulder"]
 	var f: float = j["facing"]
 	match acc:
+		"cape":
+			# 大披風：比羽織長且下襬張得更開，是遠看最容易辨識的剪影
+			var sway := sin(phase * 2.2) * 10.0 * b
+			var top := sh + Vector2(0, -4.0 * b)
+			var cloth := PackedVector2Array([
+				top + Vector2(f * 4.0 * b, 0.0),
+				top + Vector2(-f * 11.0 * b, 2.0 * b),
+				top + Vector2(-f * 34.0 * b - f * sway, 46.0 * b),
+				top + Vector2(-f * 6.0 * b - f * sway * 0.5, 62.0 * b),
+				top + Vector2(f * 12.0 * b, 40.0 * b),
+			])
+			ci.draw_colored_polygon(cloth,
+				Color(col.r * 0.3, col.g * 0.26, col.b * 0.3, col.a * 0.95))
+			ci.draw_polyline(cloth + PackedVector2Array([cloth[0]]),
+				Color(accent.r, accent.g, accent.b, col.a * 0.8), 2.0 * b, true)
+		"blades":
+			# 背後交叉雙刀
+			for s in 2:
+				var dir: float = 1.0 if s == 0 else -1.0
+				var a := sh + Vector2(-f * 6.0 * b, 2.0 * b)
+				var tip := a + Vector2(-f * 26.0 * b * dir, -30.0 * b + dir * 8.0 * b)
+				ci.draw_line(a, tip, Color(0.75, 0.78, 0.88, col.a), 4.0 * b, true)
+				ci.draw_line(a, a.lerp(tip, 0.28), accent, 5.5 * b, true)
 		"haori":
 			# 羽織：只披在背側的窄長外衣，下襬外擺。
 			# 刻意不蓋住正面軀幹，否則火柴人的剪影會整個被糊掉。
@@ -316,37 +383,110 @@ static func _draw_accessory_back(ci: CanvasItem, j: Dictionary, acc: String,
 
 
 static func _draw_accessory_front(ci: CanvasItem, j: Dictionary, acc: String,
-		col: Color, accent: Color, phase: float) -> void:
+		col: Color, accent: Color, phase: float, b := 1.0, head_r := HEAD_R) -> void:
 	var neck: Vector2 = j["neck"]
 	var h: Vector2 = j["head"]
+	var hip: Vector2 = j["hip"]
+	var sh: Vector2 = j["shoulder"]
 	var f: float = j["facing"]
 	match acc:
+		"gauntlets":
+			# 拳套：加厚的拳頭 + 護腕，發光造型還會在拳上燃起火舌。
+			# 這是唯一「動作時才最明顯」的配件 —— 揮拳與招式的手部位置都會帶著它。
+			for key_v in ["hand_b", "hand_f"]:
+				var key: String = key_v
+				var hand: Vector2 = j[key]
+				var elbow: Vector2 = j[key.replace("hand", "elbow")]
+				var dir := (hand - elbow).normalized()
+				if dir == Vector2.ZERO:
+					dir = Vector2(f, 0)
+				var front: bool = key == "hand_f"
+				var r: float = (7.6 if front else 6.6) * b
+
+				if col.a > 0.0 and accent.a > 0.0:
+					# 火焰／能量拖尾，朝手臂反方向散開
+					for i in 3:
+						var u := float(i) / 2.0
+						var tail := hand - dir * (r * (1.2 + u * 1.5))
+						var off: float = 0.0 if front else 1.7
+						var flick := sin(phase * 6.0 + u * 3.0 + off)
+						ci.draw_circle(tail + dir.orthogonal() * flick * 3.0 * b,
+							r * (0.85 - u * 0.25),
+							Color(accent.r, accent.g, accent.b, col.a * (0.3 - u * 0.08)))
+				# 護腕
+				var cuff := hand - dir * r * 1.1
+				ci.draw_colored_polygon(PackedVector2Array([
+					cuff + dir.orthogonal() * r * 0.95,
+					cuff - dir.orthogonal() * r * 0.95,
+					cuff - dir * r * 0.9 - dir.orthogonal() * r * 0.7,
+					cuff - dir * r * 0.9 + dir.orthogonal() * r * 0.7,
+				]), Color(accent.r * 0.55, accent.g * 0.5, accent.b * 0.6, col.a))
+				# 拳體：外層光暈 → 深色皮革 → 亮色能量核心。
+				# 皮革刻意壓暗，否則同色系的拳套會和手臂糊成一團看不出形狀。
+				ci.draw_circle(hand, r * 1.5, Color(accent.r, accent.g, accent.b, col.a * 0.28))
+				ci.draw_circle(hand, r, Color(col.r * 0.32, col.g * 0.28, col.b * 0.3, col.a))
+				ci.draw_circle(hand + dir * r * 0.25, r * 0.52,
+					Color(accent.r, accent.g, accent.b, col.a * 0.95))
+				ci.draw_circle(hand + dir * r * 0.3, r * 0.24,
+					Color(1, 1, 1, col.a * 0.75))
+		"armor":
+			# 肩甲 + 胸甲，讓上半身明顯變寬
+			for s in 2:
+				var dir: float = 1.0 if s == 0 else -1.0
+				var c := sh + Vector2(dir * f * 11.0 * b, -1.0 * b)
+				ci.draw_colored_polygon(PackedVector2Array([
+					c + Vector2(-7.0 * b, -5.0 * b), c + Vector2(9.0 * b * dir, -3.0 * b),
+					c + Vector2(8.0 * b * dir, 7.0 * b), c + Vector2(-6.0 * b, 8.0 * b),
+				]), Color(accent.r * 0.8, accent.g * 0.8, accent.b * 0.85, col.a))
+			ci.draw_colored_polygon(PackedVector2Array([
+				sh + Vector2(-8.0 * b, 4.0 * b), sh + Vector2(8.0 * b, 4.0 * b),
+				sh + Vector2(6.0 * b, 20.0 * b), sh + Vector2(-6.0 * b, 20.0 * b),
+			]), Color(accent.r * 0.6, accent.g * 0.6, accent.b * 0.68, col.a))
+		"tail":
+			# 分節長尾，隨相位擺動
+			var pts := PackedVector2Array()
+			var widths := PackedFloat32Array()
+			for i in 9:
+				var u := float(i) / 8.0
+				pts.append(hip + Vector2(-f * u * 44.0 * b,
+					6.0 * b + sin(phase * 3.0 + u * 4.0) * (4.0 + u * 14.0) * b))
+				widths.append(lerpf(6.0, 1.0, u) * b)
+			var poly := Fx.ribbon(pts, widths)
+			if poly.size() >= 3:
+				ci.draw_colored_polygon(poly, Color(col.r * 0.85, col.g * 0.85, col.b * 0.9, col.a))
+			# 尾端尖刺
+			var last: Vector2 = pts[pts.size() - 1]
+			ci.draw_colored_polygon(PackedVector2Array([
+				last + Vector2(0, -5.0 * b), last + Vector2(-f * 14.0 * b, 0),
+				last + Vector2(0, 5.0 * b),
+			]), accent)
 		"scarf":
 			# 長巾：頸部起一條隨正弦飄動的緞帶
 			var pts := PackedVector2Array()
 			var widths := PackedFloat32Array()
-			for i in 11:
-				var u := float(i) / 10.0
-				pts.append(neck + Vector2(-f * u * 52.0,
-					2.0 + sin(phase * 3.2 + u * 5.0) * (5.0 + u * 12.0)))
-				widths.append(lerpf(6.0, 1.2, u))
+			for i in 13:
+				var u := float(i) / 12.0
+				pts.append(neck + Vector2(-f * u * 78.0 * b,
+					2.0 * b + sin(phase * 3.2 + u * 5.0) * (5.0 + u * 20.0) * b))
+				widths.append(lerpf(7.0, 1.2, u) * b)
 			var poly := Fx.ribbon(pts, widths)
 			if poly.size() >= 3:
 				ci.draw_colored_polygon(poly, Color(accent.r, accent.g, accent.b, col.a * 0.95))
 			# 頸部結
-			ci.draw_circle(neck + Vector2(0, 2.0), 4.2, accent)
+			ci.draw_circle(neck + Vector2(0, 2.0 * b), 4.2 * b, accent)
 		"horns":
+			# 巨角：長度隨頭部大小放大，是「鬼」與「龍人」的主要辨識點
 			for side in 2:
 				var s: float = 1.0 if side == 0 else -1.0
-				var base := h + Vector2(s * f * 6.5, -HEAD_R * 0.72)
+				var base := h + Vector2(s * f * head_r * 0.65, -head_r * 0.72)
 				ci.draw_colored_polygon(PackedVector2Array([
-					base + Vector2(-s * f * 2.6, 1.0),
-					base + Vector2(s * f * 3.0, 0.0),
-					base + Vector2(s * f * 8.0, -15.0),
+					base + Vector2(-s * f * head_r * 0.3, head_r * 0.12),
+					base + Vector2(s * f * head_r * 0.34, 0.0),
+					base + Vector2(s * f * head_r * 1.1, -head_r * 2.0),
 				]), Color(accent.r, accent.g, accent.b, col.a))
 		"halo":
-			var r := HEAD_R * 1.5
-			var y := h.y - HEAD_R - 9.0
+			var r := head_r * 1.5
+			var y := h.y - head_r - 9.0 * b
 			ci.draw_set_transform(Vector2(h.x, y), 0.0, Vector2(1.0, 0.34))
 			ci.draw_arc(Vector2.ZERO, r, 0, TAU, 26,
 				Color(accent.r, accent.g, accent.b, col.a * (0.55 + 0.35 * sin(phase * 4.0))), 2.6, true)

@@ -46,7 +46,7 @@ func _run() -> void:
 	main.shop_screen.tab = main.shop_screen.Tab.SKIN
 	for si in Game.SKIN_ORDER.size():
 		main.shop_screen.index = si
-		main.shop_screen._preview_t = 3.4      # 固定在站立姿勢，方便比較
+		main.shop_screen._preview_t = 2.0      # 固定在勾拳姿勢，看得到拳套與配件
 		await get_tree().create_timer(0.35).timeout
 		await _shot("skin_%s" % Game.SKIN_ORDER[si])
 

@@ -115,50 +115,81 @@ const ELEMENTS := {
 ## 造型：火柴人是純程式繪製的，所以造型 = 頭部樣式 + 配件 + 線條粗細 + 光暈 的組合。
 ## head: circle / square / helm / hood / skull
 ## acc:  none / scarf / haori / horns / halo / wings / topknot
+## build   = 整體體型倍率（最重要的辨識線索，遠看就能分辨）
+## head_r  = 頭部大小倍率
+## limb_w  = 四肢粗細倍率
 const SKIN_ORDER: PackedStringArray = [
-	"plain", "corps", "flame", "aqua", "oni", "crow", "thunder", "phantom",
+	"plain", "corps", "aqua", "flame", "fists", "musha", "crow", "oni",
+	"thunder", "dragonkin", "phantom",
 ]
 
 const SKINS := {
 	"plain": {
-		"name": "白練", "sub": "初始造型", "price": 0,
+		"name": "白練", "sub": "初始造型　·　標準體型", "price": 0,
 		"body": Color(0.95, 0.97, 1.0), "accent": Color(0.55, 0.68, 0.9),
-		"head": "circle", "acc": "none", "width": 5.0, "glow": false, "trail": false,
+		"head": "circle", "acc": "none", "width": 5.0,
+		"build": 1.0, "head_r": 1.0, "limb_w": 1.0, "glow": false, "trail": false,
 	},
 	"corps": {
-		"name": "隊士服", "sub": "漆黑的羽織，最基本的裝束", "price": 400,
-		"body": Color(0.24, 0.25, 0.34), "accent": Color(0.55, 0.6, 0.78),
-		"head": "circle", "acc": "haori", "width": 5.5, "glow": false, "trail": false,
-	},
-	"flame": {
-		"name": "炎之呼吸", "sub": "緋色羽織與火焰紋", "price": 700,
-		"body": Color(0.96, 0.45, 0.22), "accent": Color(1.0, 0.82, 0.3),
-		"head": "topknot", "acc": "haori", "width": 5.5, "glow": true, "trail": false,
+		"name": "隊士服", "sub": "漆黑羽織與髮髻　·　標準體型", "price": 300,
+		"body": Color(0.24, 0.25, 0.34), "accent": Color(0.6, 0.66, 0.85),
+		"head": "topknot", "acc": "haori", "width": 5.5,
+		"build": 1.0, "head_r": 1.0, "limb_w": 1.05, "glow": false, "trail": false,
 	},
 	"aqua": {
-		"name": "水之呼吸", "sub": "水藍長巾隨風擺動", "price": 700,
+		"name": "水之呼吸", "sub": "纖細身形　·　及地長巾", "price": 600,
 		"body": Color(0.42, 0.72, 1.0), "accent": Color(0.8, 0.95, 1.0),
-		"head": "circle", "acc": "scarf", "width": 5.0, "glow": true, "trail": false,
+		"head": "circle", "acc": "scarf", "width": 5.0,
+		"build": 0.97, "head_r": 0.9, "limb_w": 0.8, "glow": true, "trail": false,
 	},
-	"oni": {
-		"name": "鬼", "sub": "蒼白的肌膚與雙角", "price": 1200,
-		"body": Color(0.86, 0.84, 0.9), "accent": Color(0.85, 0.2, 0.3),
-		"head": "skull", "acc": "horns", "width": 6.0, "glow": false, "trail": false,
+	"flame": {
+		"name": "炎之呼吸", "sub": "火焰狀鬃髮　·　緋色大披風", "price": 900,
+		"body": Color(0.96, 0.45, 0.22), "accent": Color(1.0, 0.82, 0.3),
+		"head": "flame_hair", "acc": "cape", "width": 5.5,
+		"build": 1.04, "head_r": 1.0, "limb_w": 1.1, "glow": true, "trail": false,
+	},
+	"fists": {
+		"name": "炎拳", "sub": "厚重拳套　·　雙拳燃燒", "price": 1000,
+		"body": Color(0.9, 0.55, 0.3), "accent": Color(1.0, 0.55, 0.12),
+		"head": "topknot", "acc": "gauntlets", "width": 5.6,
+		"build": 1.06, "head_r": 0.95, "limb_w": 1.2, "glow": true, "trail": false,
+		"fist_aura": true,
+	},
+	"musha": {
+		"name": "武者", "sub": "般若面具　·　背負雙刀", "price": 1200,
+		"body": Color(0.42, 0.44, 0.55), "accent": Color(0.95, 0.35, 0.32),
+		"head": "mask", "acc": "blades", "width": 5.8,
+		"build": 1.06, "head_r": 1.05, "limb_w": 1.15, "glow": false, "trail": false,
 	},
 	"crow": {
-		"name": "鴉羽", "sub": "漆黑的雙翼", "price": 1500,
-		"body": Color(0.16, 0.16, 0.22), "accent": Color(0.55, 0.5, 0.75),
-		"head": "hood", "acc": "wings", "width": 5.5, "glow": false, "trail": true,
+		"name": "鴉羽", "sub": "兜帽與漆黑雙翼　·　高速殘影", "price": 1500,
+		"body": Color(0.16, 0.16, 0.22), "accent": Color(0.62, 0.55, 0.85),
+		"head": "hood", "acc": "wings", "width": 5.5,
+		"build": 1.0, "head_r": 1.1, "limb_w": 0.95, "glow": false, "trail": true,
+	},
+	"oni": {
+		"name": "鬼", "sub": "壯碩體格　·　骷髏面與巨角", "price": 1800,
+		"body": Color(0.86, 0.84, 0.9), "accent": Color(0.9, 0.18, 0.28),
+		"head": "skull", "acc": "horns", "width": 6.0,
+		"build": 1.2, "head_r": 1.2, "limb_w": 1.35, "glow": false, "trail": false,
 	},
 	"thunder": {
-		"name": "雷霆", "sub": "全身纏繞金色電光，移動留下殘影", "price": 2000,
+		"name": "雷霆", "sub": "重裝護甲　·　光環與殘影", "price": 2200,
 		"body": Color(1.0, 0.88, 0.35), "accent": Color(1.0, 1.0, 0.75),
-		"head": "helm", "acc": "halo", "width": 6.0, "glow": true, "trail": true,
+		"head": "helm", "acc": "armor", "width": 6.0,
+		"build": 1.08, "head_r": 1.05, "limb_w": 1.25, "glow": true, "trail": true,
+	},
+	"dragonkin": {
+		"name": "龍人", "sub": "高大身形　·　巨角與長尾", "price": 2600,
+		"body": Color(0.62, 0.45, 1.0), "accent": Color(0.95, 0.8, 0.35),
+		"head": "skull", "acc": "tail", "width": 5.6,
+		"build": 1.15, "head_r": 0.95, "limb_w": 1.05, "glow": true, "trail": false,
 	},
 	"phantom": {
-		"name": "幻影", "sub": "只剩輪廓的存在", "price": 2800,
+		"name": "幻影", "sub": "極高極瘦　·　只剩輪廓", "price": 3200,
 		"body": Color(0.45, 0.95, 0.95), "accent": Color(0.9, 1.0, 1.0),
-		"head": "square", "acc": "none", "width": 3.2, "glow": true, "trail": true,
+		"head": "square", "acc": "none", "width": 3.2,
+		"build": 1.16, "head_r": 0.78, "limb_w": 0.55, "glow": true, "trail": true,
 	},
 }
 
@@ -182,6 +213,13 @@ var ui_font: Font = null
 func _ready() -> void:
 	ui_font = _load_cjk_font()
 	load_game()
+	if ELEMENTS_ALL_FREE:
+		unlocked.clear()
+		for id in ELEMENT_ORDER:
+			unlocked.append(id)
+		starter_chosen = true
+		if equipped == "":
+			equipped = ELEMENT_ORDER[0]
 	# 觸控裝置自動開啟手機模式（存檔若已有設定則以存檔為準）
 	if not _mobile_mode_saved:
 		mobile_mode = DisplayServer.is_touchscreen_available() \
@@ -242,16 +280,24 @@ func element_name(id: String) -> String:
 	return ELEMENTS.get(id, {}).get("name", id)
 
 
-func price_of(id: String) -> int:
-	var data: Dictionary = ELEMENTS.get(id, {})
+## 所有元素一律免費、預設全部解鎖。
+## 金幣改為只用於造型 —— 玩法內容不上鎖，付費（遊玩）獎勵只影響外觀。
+const ELEMENTS_ALL_FREE := true
+
+
+func price_of(_id: String) -> int:
+	if ELEMENTS_ALL_FREE:
+		return 0
+	var data: Dictionary = ELEMENTS.get(_id, {})
 	var cost: int = data.get("cost", 0)
-	# 四大基礎元素：第一顆免費，之後補買為固定價格。
 	if cost == 0:
 		return 0 if not starter_chosen else BASE_REBUY_COST
 	return cost
 
 
 func is_unlocked(id: String) -> bool:
+	if ELEMENTS_ALL_FREE:
+		return ELEMENTS.has(id)
 	return unlocked.has(id)
 
 
