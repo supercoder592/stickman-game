@@ -1,11 +1,35 @@
 # 元素極限：火柴人大亂鬥
 
+### ▶ [點這裡直接在瀏覽器玩](https://supercoder592.github.io/stickman-game/)
+
+> 首次載入約 46 MB（wasm + 資源），請耐心等進度條跑完。
+> 網頁版為 WebGL（Compatibility）建置，**不支援連線對戰**（瀏覽器不能用 ENet／UDP），
+> 連線功能請下載原始碼用 Godot 執行。
+
 Godot 4 橫向動作遊戲原型。角色、關卡、UI、以及 9 種元素招式的全部特效
 **完全由 GDScript 程式繪製**（`_draw()` + `CPUParticles2D` + `Line2D`），
 專案內沒有任何 png / 圖片素材，`icon.svg` 只是專案圖示。
 
 美術方向取材自《鬼滅之刃》的呼吸法筆觸（濃墨描邊的毛筆新月斬、浮世繪浪頭、漫畫集中線）
 與寶可夢的招式能量演出（法陣、向心吸能、光束），細節見 `docs/element-design.md`。
+
+## 網頁版建置
+
+```bash
+# 需要先在 Godot 編輯器安裝匯出範本（Editor → Manage Export Templates）
+godot --headless --path . --export-release "Web" ../build/web/index.html
+```
+
+`export_presets.cfg` 已關閉執行緒支援，因為 GitHub Pages 不會送 COOP/COEP 標頭，
+開啟執行緒會導致 SharedArrayBuffer 不可用而無法啟動。
+
+網頁版有三個環境限制，程式中已各自處理：
+
+| 限制 | 處理方式 |
+| --- | --- |
+| 瀏覽器讀不到系統字型 | 內建 Noto Sans TC（`assets/fonts/`），否則中文全變空白方塊 |
+| 只支援 WebGL，不能用 Forward+ | `rendering_method.web` 覆寫為 `gl_compatibility`（泛光仍可用） |
+| 不支援 ENet／UDP | 網頁版隱藏「連線對戰」，選單改以名稱分派避免索引位移 |
 
 ## 執行方式
 
