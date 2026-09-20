@@ -642,50 +642,115 @@ function drawShoulderPad(ctx, char, s, M, { mat, opt, bulk, flat }) {
  */
 function drawFace(ctx, h, r, char, flat) {
   if (flat) return;
-  const ink = '#1b141a';
+  const ink = '#241a22';
+  const P = (fx, fy) => ({ x: h.x + r * fx, y: h.y + r * fy });
+
   ctx.save();
-  // 眼窩的陰影
-  ctx.fillStyle = 'rgba(0,0,0,0.16)';
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  // --- 顴骨與下顎的陰影：臉要有立體感，靠的是這兩塊，不是漸層 ---
+  ctx.fillStyle = 'rgba(120,68,44,0.26)';
   ctx.beginPath();
-  ctx.ellipse(h.x + r * 0.42, h.y - r * 0.04, r * 0.26, r * 0.2, -0.1, 0, Math.PI * 2);
+  const cheek = [P(-0.2, -0.06), P(0.5, 0.06), P(0.66, 0.36), P(0.3, 0.66), P(-0.28, 0.52)];
+  ctx.moveTo(cheek[0].x, cheek[0].y);
+  for (const q of cheek.slice(1)) ctx.lineTo(q.x, q.y);
+  ctx.closePath();
   ctx.fill();
-  // 眼白 + 瞳孔
-  ctx.fillStyle = '#f6f2ea';
+
+  // --- 眼窩：比膚色深一階的一塊，眼睛坐在裡面 ---
+  ctx.fillStyle = 'rgba(110,60,38,0.34)';
   ctx.beginPath();
-  ctx.ellipse(h.x + r * 0.46, h.y - r * 0.02, r * 0.19, r * 0.14, -0.1, 0, Math.PI * 2);
+  ctx.ellipse(h.x + r * 0.44, h.y - r * 0.06, r * 0.3, r * 0.21, -0.14, 0, Math.PI * 2);
+  ctx.fill();
+
+  // --- 眼白 ---
+  const eye = new Path2D();
+  eye.moveTo(h.x + r * 0.2, h.y - r * 0.02);
+  eye.quadraticCurveTo(h.x + r * 0.44, h.y - r * 0.24, h.x + r * 0.68, h.y - r * 0.06);
+  eye.quadraticCurveTo(h.x + r * 0.46, h.y + r * 0.14, h.x + r * 0.2, h.y - r * 0.02);
+  eye.closePath();
+  ctx.fillStyle = '#f7f3ec';
+  ctx.fill(eye);
+
+  // --- 虹膜與瞳孔：靠前，像在瞪著對手 ---
+  ctx.save();
+  ctx.clip(eye);
+  ctx.fillStyle = mixColor(char.accent || '#7a6048', '#4a3524', 0.55);
+  ctx.beginPath();
+  ctx.ellipse(h.x + r * 0.53, h.y - r * 0.03, r * 0.13, r * 0.15, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = ink;
   ctx.beginPath();
-  ctx.ellipse(h.x + r * 0.54, h.y - r * 0.01, r * 0.085, r * 0.12, 0, 0, Math.PI * 2);
+  ctx.ellipse(h.x + r * 0.55, h.y - r * 0.03, r * 0.07, r * 0.1, 0, 0, Math.PI * 2);
   ctx.fill();
-  // 眉毛：壓在眼睛正上方，往鼻樑斜下去
+  ctx.restore();
+
+  // --- 上眼瞼：一條粗黑，眼睛的重量全在這裡 ---
   ctx.strokeStyle = ink;
-  ctx.lineWidth = r * 0.14;
-  ctx.lineCap = 'round';
+  ctx.lineWidth = r * 0.11;
   ctx.beginPath();
-  ctx.moveTo(h.x + r * 0.2, h.y - r * 0.34);
-  ctx.lineTo(h.x + r * 0.66, h.y - r * 0.22);
+  ctx.moveTo(h.x + r * 0.19, h.y - r * 0.03);
+  ctx.quadraticCurveTo(h.x + r * 0.44, h.y - r * 0.26, h.x + r * 0.69, h.y - r * 0.07);
   ctx.stroke();
-  // 嘴：抿著的一條
-  ctx.lineWidth = r * 0.09;
-  ctx.strokeStyle = 'rgba(27,20,26,0.7)';
+  // 下眼瞼：細一點
+  ctx.lineWidth = r * 0.05;
+  ctx.strokeStyle = 'rgba(36,26,34,0.5)';
   ctx.beginPath();
-  ctx.moveTo(h.x + r * 0.42, h.y + r * 0.52);
-  ctx.lineTo(h.x + r * 0.7, h.y + r * 0.48);
+  ctx.moveTo(h.x + r * 0.24, h.y + r * 0.02);
+  ctx.quadraticCurveTo(h.x + r * 0.46, h.y + r * 0.13, h.x + r * 0.66, h.y - r * 0.02);
   ctx.stroke();
-  // 顴骨的陰影
-  ctx.strokeStyle = 'rgba(0,0,0,0.14)';
-  ctx.lineWidth = r * 0.16;
+
+  // --- 眉毛：畫成一塊楔形，內側粗外側細，壓得越低越兇 ---
+  ctx.fillStyle = ink;
   ctx.beginPath();
-  ctx.moveTo(h.x + r * 0.3, h.y + r * 0.22);
-  ctx.lineTo(h.x + r * 0.64, h.y + r * 0.16);
+  const brow = [P(0.06, -0.44), P(0.72, -0.24), P(0.7, -0.12), P(0.08, -0.28)];
+  ctx.moveTo(brow[0].x, brow[0].y);
+  for (const q of brow.slice(1)) ctx.lineTo(q.x, q.y);
+  ctx.closePath();
+  ctx.fill();
+
+  // --- 鼻子：鼻樑的暗面 + 鼻孔 ---
+  ctx.strokeStyle = 'rgba(120,64,40,0.5)';
+  ctx.lineWidth = r * 0.07;
+  ctx.beginPath();
+  ctx.moveTo(h.x + r * 0.72, h.y - r * 0.12);
+  ctx.lineTo(h.x + r * 0.86, h.y + r * 0.2);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(60,32,24,0.65)';
+  ctx.beginPath();
+  ctx.ellipse(h.x + r * 0.78, h.y + r * 0.28, r * 0.07, r * 0.05, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // --- 嘴：上唇一條實線，下唇一道陰影 ---
+  ctx.strokeStyle = 'rgba(96,44,40,0.9)';
+  ctx.lineWidth = r * 0.08;
+  ctx.beginPath();
+  ctx.moveTo(h.x + r * 0.4, h.y + r * 0.52);
+  ctx.quadraticCurveTo(h.x + r * 0.6, h.y + r * 0.56, h.x + r * 0.78, h.y + r * 0.47);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(120,64,40,0.34)';
+  ctx.lineWidth = r * 0.06;
+  ctx.beginPath();
+  ctx.moveTo(h.x + r * 0.46, h.y + r * 0.64);
+  ctx.quadraticCurveTo(h.x + r * 0.62, h.y + r * 0.66, h.x + r * 0.74, h.y + r * 0.58);
   ctx.stroke();
   ctx.restore();
-  // 耳朵
-  shade(ctx, smooth([
-    { x: h.x - r * 0.3, y: h.y - r * 0.08 }, { x: h.x - r * 0.08, y: h.y },
-    { x: h.x - r * 0.12, y: h.y + r * 0.32 }, { x: h.x - r * 0.36, y: h.y + r * 0.24 },
-  ], 0.9), MAT.skin, { cx: h.x - r * 0.22, cy: h.y + r * 0.12, r: r * 0.5, outlineWidth: 1.6 });
+
+  // --- 耳朵：外廓 + 內耳的一道線 ---
+  const ear = smooth([
+    P(-0.34, -0.12), P(-0.08, -0.04), P(-0.06, 0.28), P(-0.3, 0.34),
+  ], 0.85);
+  shade(ctx, ear, MAT.skin, { cx: h.x - r * 0.2, cy: h.y + r * 0.1, r: r * 0.5, outlineWidth: 1.8 });
+  ctx.save();
+  ctx.clip(ear);
+  ctx.strokeStyle = 'rgba(120,64,40,0.5)';
+  ctx.lineWidth = r * 0.07;
+  ctx.beginPath();
+  ctx.moveTo(h.x - r * 0.24, h.y - r * 0.02);
+  ctx.quadraticCurveTo(h.x - r * 0.1, h.y + r * 0.08, h.x - r * 0.16, h.y + r * 0.24);
+  ctx.stroke();
+  ctx.restore();
 }
 
 /** 頭髮：一大塊實色 + 幾撮尖角，用剪影做造型 */
@@ -759,34 +824,26 @@ function drawHead(ctx, char, J, M, { mat, opt, bulk, flat, t }) {
   // 脖子
   shadeLimb(ctx, J.neck.x, J.neck.y + 3, h.x, h.y + r * 0.66, 6 * bulk, 5 * bulk, mat(M.skin), opt(J.neck.x, J.neck.y, 12, { ao: 0.3 }));
 
-  // 頭顱
-  // 顱骨上寬、下顎收尖、鼻樑往前凸一點：正面看是蛋形，側看有人臉的稜線
-  // 額頭 → 鼻樑（往前凸）→ 人中 → 下巴 → 下顎角：側臉的稜線
+  // 頭顱：額頭 → 眉弓 → 眼窩凹 → 鼻樑 → 鼻尖 → 人中 → 唇 → 下巴 → 下顎角 → 後腦
+  const F = (fx, fy) => ({ x: h.x + r * fx, y: h.y + r * fy });
   const skull = smooth([
-    { x: h.x - r * 0.76, y: h.y - r * 0.48 },
-    { x: h.x - r * 0.4, y: h.y - r * 1.0 },
-    { x: h.x + r * 0.36, y: h.y - r * 1.02 },
-    { x: h.x + r * 0.8, y: h.y - r * 0.5 },
-    { x: h.x + r * 0.82, y: h.y - r * 0.02 },
-    { x: h.x + r * 1.02, y: h.y + r * 0.26 },
-    { x: h.x + r * 0.74, y: h.y + r * 0.36 },
-    { x: h.x + r * 0.72, y: h.y + r * 0.74 },
-    { x: h.x + r * 0.1, y: h.y + r * 1.0 },
-    { x: h.x - r * 0.58, y: h.y + r * 0.6 },
-  ], 0.72);
-  shade(ctx, skull, mat(M.skin), opt(h.x, h.y, r * 1.6, { ao: 0.25 }));
-  if (!flat) {
-    // 眼窩陰影：暗一點的橫帶，臉才有結構
-    ctx.save();
-    ctx.clip(skull);
-    const eg = ctx.createLinearGradient(0, h.y - r * 0.5, 0, h.y + r * 0.1);
-    eg.addColorStop(0, 'rgba(0,0,0,0)');
-    eg.addColorStop(0.6, 'rgba(0,0,0,0.42)');
-    eg.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = eg;
-    ctx.fillRect(h.x - r * 1.2, h.y - r * 0.6, r * 2.4, r * 0.8);
-    ctx.restore();
-  }
+    F(-0.36, -1.12), F(0.3, -1.08),          // 頭頂
+    F(0.7, -0.74),                            // 額頭
+    F(0.79, -0.36),                           // 眉弓
+    F(0.73, -0.14),                           // 眼窩凹進去
+    F(0.93, 0.08),                            // 鼻樑
+    F(1.05, 0.26),                            // 鼻尖
+    F(0.8, 0.34),                             // 鼻底
+    F(0.88, 0.46),                            // 上唇
+    F(0.84, 0.56),                            // 唇縫
+    F(0.88, 0.64),                            // 下唇
+    F(0.8, 0.82),                             // 下巴
+    F(0.46, 1.0),                             // 下巴底
+    F(-0.12, 0.9),                            // 下顎角
+    F(-0.62, 0.46),                           // 下顎後緣
+    F(-0.84, -0.06), F(-0.76, -0.66),         // 後腦
+  ], 0.38);
+  shade(ctx, skull, mat(M.skin), opt(h.x, h.y, r * 1.7, { ao: 0.18 }));
 
   switch (gear) {
     case 'welder': {      // 焊工面罩：一片方形擋板 + 觀察窗
