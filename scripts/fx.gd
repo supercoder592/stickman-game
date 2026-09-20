@@ -645,6 +645,16 @@ static func curl(parent: Node, pos: Vector2, col: Color, size := 34.0, spin := 1
 	parent.add_child(c)
 
 
+## 任意字樣的浮動文字（閃避、格擋…），和傷害數字共用同一個節點
+static func float_text(parent: Node, pos: Vector2, text: String, col: Color) -> void:
+	var d := DamageText.new()
+	d.position = pos + Vector2(randf_range(-8, 8), 0)
+	d.text = text
+	d.col = col
+	d.vel = Vector2(randf_range(-20, 20), -60)
+	parent.add_child(d)
+
+
 static func damage_text(parent: Node, pos: Vector2, amount: float, col: Color) -> void:
 	var d := DamageText.new()
 	d.position = pos + Vector2(randf_range(-8, 8), 0)

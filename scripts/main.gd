@@ -1,6 +1,6 @@
 extends Node2D
 ##
-## 遊戲流程控制：主畫面 → 選元素 → 1v1 對戰 → 結算 → 回主畫面。
+## 遊戲流程控制：主畫面 → 選角色 → 1v1 對戰 → 結算 → 回主畫面。
 ## 這是 scenes/main.tscn 的根節點。
 ##
 
@@ -47,7 +47,7 @@ func _ready() -> void:
 	title_screen = _add_screen("res://scripts/ui/title_screen.gd", "Title")
 	shop_screen = _add_screen("res://scripts/ui/shop_screen.gd", "Shop")
 	lobby_screen = _add_screen("res://scripts/ui/lobby_screen.gd", "Lobby")
-	select_screen = _add_screen("res://scripts/ui/element_select.gd", "Select")
+	select_screen = _add_screen("res://scripts/ui/character_select.gd", "Select")
 	result_screen = _add_screen("res://scripts/ui/result_screen.gd", "Result")
 	hud = _add_screen("res://scripts/ui/battle_hud.gd", "HUD")
 	touch = _add_screen("res://scripts/ui/touch_controls.gd", "Touch")
@@ -126,7 +126,7 @@ func _goto_lobby() -> void:
 
 
 ## 連線對戰：主機與客戶端跑同一套 Arena，只是模式不同
-func _start_net_battle(my_element: String, foe_element: String, as_host: bool) -> void:
+func _start_net_battle(my_character: String, foe_character: String, as_host: bool) -> void:
 	state = Screen.BATTLE
 	_clear_screens()
 	_destroy_arena()
@@ -136,7 +136,7 @@ func _start_net_battle(my_element: String, foe_element: String, as_host: bool) -
 	add_child(arena)
 	arena.battle_over.connect(_on_battle_over)
 	var m: int = Arena.Mode.NET_HOST if as_host else Arena.Mode.NET_CLIENT
-	arena.start_battle(my_element, foe_element, 1.0, m)
+	arena.start_battle(my_character, foe_character, 1.0, m)
 
 	hud.bind_arena(arena)
 	_show(hud)
@@ -149,7 +149,7 @@ func _goto_select() -> void:
 	_show(select_screen)
 
 
-func _start_battle(player_element: String, opponent_element: String) -> void:
+func _start_battle(player_character: String, opponent_character: String) -> void:
 	state = Screen.BATTLE
 	_clear_screens()
 	_destroy_arena()
@@ -158,7 +158,7 @@ func _start_battle(player_element: String, opponent_element: String) -> void:
 	arena.name = "Arena"
 	add_child(arena)
 	arena.battle_over.connect(_on_battle_over)
-	arena.start_battle(player_element, opponent_element)
+	arena.start_battle(player_character, opponent_character)
 
 	hud.bind_arena(arena)
 	_show(hud)

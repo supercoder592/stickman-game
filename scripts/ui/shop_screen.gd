@@ -1,15 +1,18 @@
 extends Control
 ##
-## 商店：兩個分頁 —— 屬性（元素）與造型。
+## 商店：兩個分頁 —— 角色與造型。
 ## 左側清單、右側預覽。造型分頁的預覽是一隻會走路／揮拳的火柴人，直接用 StickFigure 畫。
+##
+## 角色分頁只是「挑一位當預設」（十位全部免費），造型分頁才是金幣的用途：
+## 換過的部位會蓋掉角色的預設穿著，沒換過的維持角色原樣。
 ##
 
 signal closed()
 
-enum Tab { ELEMENT, SKIN }
+enum Tab { CHARACTER, SKIN }
 
 var main = null
-var tab: int = Tab.ELEMENT
+var tab: int = Tab.CHARACTER
 var index := 0
 var t := 0.0
 var message := ""
@@ -38,7 +41,7 @@ func _input(event: InputEvent) -> void:
 		return
 	match action:
 		"tab0":
-			tab = Tab.ELEMENT
+			tab = Tab.CHARACTER
 			index = 0
 		"tab1":
 			tab = Tab.SKIN
@@ -65,7 +68,7 @@ func bind(m) -> void:
 
 
 func on_shown() -> void:
-	tab = Tab.ELEMENT
+	tab = Tab.CHARACTER
 	index = 0
 	message = ""
 
@@ -88,8 +91,8 @@ func _process(delta: float) -> void:
 
 
 func _entries() -> PackedStringArray:
-	if tab == Tab.ELEMENT:
-		return Game.ELEMENT_ORDER
+	if tab == Tab.CHARACTER:
+		return Characters.ORDER
 	var out := PackedStringArray()
 	for o in _slot_options():
 		out.append(str(o))
@@ -114,7 +117,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				slot_index = (slot_index - 1 + Game.PART_SLOTS.size()) % Game.PART_SLOTS.size()
 				index = 0
 			else:
-				tab = Tab.ELEMENT
+				tab = Tab.CHARACTER
 				index = 0
 		KEY_D, KEY_RIGHT, KEY_E:
 			if tab == Tab.SKIN:
@@ -124,7 +127,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				tab = Tab.SKIN
 				index = 0
 		KEY_TAB:
-			tab = Tab.SKIN if tab == Tab.ELEMENT else Tab.ELEMENT
+			tab = Tab.SKIN if tab == Tab.CHARACTER else Tab.CHARACTER
 			index = 0
 		KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
 			_confirm()
@@ -141,18 +144,9 @@ func _toast(msg: String) -> void:
 
 func _confirm() -> void:
 	var id: String = _entries()[index]
-	if tab == Tab.ELEMENT:
-		if Game.is_unlocked(id):
-			Game.equip(id)
-			_toast("已選用 %s" % Game.element_name(id))
-			return
-		var price := Game.price_of(id)
-		if Game.coins < price:
-			_toast("金幣不足：還差 %d" % (price - Game.coins))
-			return
-		if Game.try_unlock(id):
-			Game.equip(id)
-			_toast("解鎖 %s！" % Game.element_name(id))
+	if tab == Tab.CHARACTER:
+		Game.equip_character(id)
+		_toast("已選用 %s・%s" % [Characters.name_of(id), Characters.title_of(id)])
 	else:
 		var slot := _slot()
 		var data: Dictionary = Game.part_data(slot, id)
@@ -208,8 +202,8 @@ func _draw() -> void:
 	for i in rows.size():
 		var r := Rect2(list.position.x, list.position.y + float(i) * row_h,
 			list.size.x, row_h - 6.0)
-		if tab == Tab.ELEMENT:
-			_draw_element_row(f, r, rows[i], i == index)
+		if tab == Tab.CHARACTER:
+			_draw_character_row(f, r, rows[i], i == index)
 		else:
 			_draw_skin_row(f, r, rows[i], i == index)
 		tap.add(r.grow(3.0), str(i))
@@ -246,7 +240,7 @@ func _draw() -> void:
 
 
 func _draw_tabs(f: Font) -> void:
-	var labels := ["屬性", "造型"]
+	var labels := ["角色", "造型"]
 	var x := 46.0
 	for i in labels.size():
 		var sel := tab == i
@@ -277,37 +271,31 @@ func _row_frame(r: Rect2, col: Color, selected: bool) -> void:
 		draw_rect(r, Color(0.28, 0.32, 0.46, 0.35), false, 1.0)
 
 
-func _draw_element_row(f: Font, r: Rect2, id: String, selected: bool) -> void:
-	var data: Dictionary = Game.ELEMENTS[id]
-	var col: Color = data["color"]
-	var owned := Game.is_unlocked(id)
+func _draw_character_row(f: Font, r: Rect2, id: String, selected: bool) -> void:
+	var col: Color = Characters.color_of(id)
 	_row_frame(r, col, selected)
 
-	var dim: float = 1.0 if owned else 0.4
-	var c := r.position + Vector2(32, r.size.y * 0.5)
-	draw_circle(c, 18.0, Color(col.r, col.g, col.b, 0.14 * dim))
-	draw_colored_polygon(Fx.star(c, 6, 12.5, 5.2, t * 0.8), Color(col.r, col.g, col.b, dim))
-	draw_circle(c, 3.8, Color(1, 1, 1, 0.85 * dim))
+	# 角色剪影當作圖示
+	var look := Game.character_look(id, false)
+	var sc: float = clampf((r.size.y - 6.0) / 92.0, 0.26, 0.44)
+	var c := r.position + Vector2(34, r.size.y - 4.0)
+	var j := StickFigure.joints("idle", 0.0, t * 2.4, 1, false)
+	draw_set_transform(c, 0.0, Vector2(sc, sc))
+	StickFigure.draw_figure(self, j, look.get("body", col),
+		float(look.get("width", 5.0)) * 1.4, 0.55, look, t)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
-	var name_col: Color = col if owned else Color(0.5, 0.53, 0.64)
-	_text(f, r.position + Vector2(62, r.size.y * 0.5 - 2.0), str(data["name"]), 18, name_col)
-	_text(f, r.position + Vector2(62, r.size.y * 0.5 + 16.0), str(data["tagline"]), 12,
-		Color(0.72, 0.76, 0.9))
+	_text(f, r.position + Vector2(70, r.size.y * 0.5 - 2.0),
+		"%s　%s" % [Characters.name_of(id), Characters.title_of(id)], 18, col)
+	_text(f, r.position + Vector2(70, r.size.y * 0.5 + 16.0),
+		"%s　·　%s" % [Game.element_name(Characters.element_of(id)),
+			str(Characters.passive_of(id).get("name", ""))], 12, Color(0.72, 0.76, 0.9))
 
-	var label := ""
-	var lc := Color.WHITE
-	if Game.equipped == id:
+	var label := "選用"
+	var lc := Color(0.75, 0.85, 1.0)
+	if Game.equipped_char == id:
 		label = "使用中"
 		lc = Color(0.5, 1.0, 0.65)
-	elif owned:
-		label = "已擁有"
-		lc = Color(0.75, 0.85, 1.0)
-	else:
-		var price := Game.price_of(id)
-		label = "%d 金幣" % price
-		if price == 0:
-			label = "免費"
-		lc = Color(1, 0.85, 0.4) if Game.coins >= price else Color(0.9, 0.45, 0.45)
 	var lw := f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 	_text(f, Vector2(r.end.x - lw - 14.0, r.position.y + r.size.y * 0.5 + 5.0), label, 14, lc)
 
@@ -335,13 +323,13 @@ func _draw_slot_bar(f: Font, x0: float, y: float) -> void:
 func _draw_skin_row(f: Font, r: Rect2, id: String, selected: bool) -> void:
 	var slot := _slot()
 	var data: Dictionary = Game.part_data(slot, id)
-	var col: Color = Game.element_color(Game.equipped)
+	var col: Color = Characters.color_of(Game.equipped_char)
 	var owned := Game.is_part_unlocked(slot, id)
 	_row_frame(r, col, selected)
 
 	var dim: float = 1.0 if owned else 0.45
 	# 圖示：只戴這一件部位的火柴人，讓玩家一眼看出差別
-	var preview := Game.build_look(Game.equipped)
+	var preview := Game.character_look(Game.equipped_char, false)
 	for s in Game.PART_SLOTS:
 		preview[s] = Game.DEFAULT_PARTS[s]
 	preview[slot] = id
@@ -378,17 +366,26 @@ func _draw_preview(f: Font, r: Rect2) -> void:
 	draw_rect(r, Color(0.4, 0.45, 0.7, 0.4), false, 1.6)
 
 	var id: String = _entries()[index]
-	if tab == Tab.ELEMENT:
-		_draw_element_preview(f, r, id)
+	if tab == Tab.CHARACTER:
+		_draw_character_preview(f, r, id)
 	else:
 		_draw_skin_preview(f, r, id)
 
 
-func _draw_element_preview(f: Font, r: Rect2, id: String) -> void:
-	var data: Dictionary = Game.ELEMENTS[id]
-	var col: Color = data["color"]
-	_text(f, r.position + Vector2(28, 48), str(data["name"]), 28, col)
-	_text(f, r.position + Vector2(28, 74), str(data["tagline"]), 14, Color(0.72, 0.76, 0.92))
+func _draw_character_preview(f: Font, r: Rect2, id: String) -> void:
+	var col: Color = Characters.color_of(id)
+	var element: String = Characters.element_of(id)
+	var data: Dictionary = Game.ELEMENTS[element]
+	_text(f, r.position + Vector2(28, 48),
+		"%s　%s" % [Characters.name_of(id), Characters.title_of(id)], 26, col)
+	_text(f, r.position + Vector2(28, 74), "%s　·　%s" % [Game.element_name(element),
+		str(Characters.data(id).get("tagline", ""))], 14, Color(0.72, 0.76, 0.92))
+
+	var passive: Dictionary = Characters.passive_of(id)
+	_text(f, Vector2(r.position.x + 28.0, r.end.y - 44.0),
+		"被動・%s" % str(passive.get("name", "")), 16, col)
+	_text(f, Vector2(r.position.x + 28.0, r.end.y - 22.0), str(passive.get("desc", "")), 12,
+		Color(0.82, 0.86, 0.98))
 	draw_line(r.position + Vector2(28, 92), r.position + Vector2(r.size.x - 28, 92),
 		Color(col.r, col.g, col.b, 0.35), 1.5)
 
@@ -416,8 +413,8 @@ func _draw_element_preview(f: Font, r: Rect2, id: String) -> void:
 func _draw_skin_preview(f: Font, r: Rect2, id: String) -> void:
 	var slot := _slot()
 	var part: Dictionary = Game.part_data(slot, id)
-	# 預覽 = 目前完整穿著，但把正在挑選的部位換成游標所指的選項
-	var data := Game.build_look(Game.equipped)
+	# 預覽 = 目前角色的完整穿著，但把正在挑選的部位換成游標所指的選項
+	var data := Game.character_look(Game.equipped_char, true)
 	data[slot] = id
 	var col: Color = data["body"]
 
@@ -430,7 +427,7 @@ func _draw_skin_preview(f: Font, r: Rect2, id: String) -> void:
 	# 目前完整搭配一覽
 	var parts_line := ""
 	for s in Game.PART_SLOTS:
-		var opt: String = id if s == slot else Game.equipped_part(s)
+		var opt: String = id if s == slot else str(data.get(s, Game.equipped_part(s)))
 		parts_line += "%s %s　" % [Game.SLOT_NAMES[s],
 			str(Game.part_data(s, opt).get("name", opt))]
 	_text(f, r.position + Vector2(28, 112), parts_line, 13, Color(0.68, 0.74, 0.9))

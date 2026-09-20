@@ -66,13 +66,16 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	t += delta
 
-	# 連上之後兩邊各自選元素並準備
+	# 連上之後兩邊各自選角色並準備。
+	# 兩邊刻意選不同角色（血量 200 vs 195），這樣快照同步是否把角色也帶過去，
+	# 從雙方印出的血量就看得出來。大廳畫面在連上時會先推一次預設角色，
+	# 所以這裡用「不等於想要的角色就再設一次」而不是「只在空字串時設定」。
 	if Net.active and not started and t > 4.0:
-		if Net.my_element == "":
-			var e: String = "fire" if Net.is_host() else "ice"
-			Net.set_my_element(e)
-			print("[net] 選擇元素 ", e)
-		elif Net.foe_element != "" and not Net.my_ready:
+		var want: String = "blaze" if Net.is_host() else "frost"
+		if Net.my_char != want:
+			Net.set_my_character(want)
+			print("[net] 選擇角色 ", want)
+		elif Net.foe_char != "" and not Net.my_ready:
 			Net.set_ready(true)
 			print("[net] 已準備")
 		elif Net.is_host() and Net.both_ready():
@@ -93,8 +96,9 @@ func _process(delta: float) -> void:
 			var key := int(t)
 			if key % 3 == 0 and not reported.has(key):
 				reported[key] = true
-				print("[net] t=%d 模式=%d 我方HP=%.0f 對手HP=%.0f 我方x=%.0f 對手x=%.0f"
-					% [key, a.mode, a.player.hp, a.opponent.hp,
+				print("[net] t=%d 模式=%d 我方=%s(HP %.0f) 對手=%s(HP %.0f) 我方x=%.0f 對手x=%.0f"
+					% [key, a.mode, a.player.char_id, a.player.hp,
+						a.opponent.char_id, a.opponent.hp,
 						a.player.global_position.x, a.opponent.global_position.x])
 
 	if t > 22.0:

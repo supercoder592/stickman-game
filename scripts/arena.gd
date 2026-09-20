@@ -52,8 +52,9 @@ func _ready() -> void:
 	_build_camera()
 
 
-## 由 main.gd 呼叫：開始一場對戰
-func start_battle(player_element: String, opponent_element: String,
+## 由 main.gd 呼叫：開始一場對戰。
+## 兩個參數是「角色 id」（Characters.ORDER 之一），角色自己帶著元素與數值。
+func start_battle(player_character: String, opponent_character: String,
 		difficulty := 1.0, battle_mode: int = Mode.SOLO) -> void:
 	mode = battle_mode
 
@@ -63,7 +64,7 @@ func start_battle(player_element: String, opponent_element: String,
 	player.input_enabled = false
 	add_child(player)
 	player.global_position = Vector2(430.0, GROUND_Y)
-	player.equip_element(player_element)
+	player.apply_character(player_character)
 	player.died.connect(_on_fighter_died)
 	fighters.append(player)
 
@@ -72,20 +73,20 @@ func start_battle(player_element: String, opponent_element: String,
 		ai.name = "Opponent"
 		ai.arena = self
 		add_child(ai)
-		ai.configure(opponent_element, difficulty)
+		ai.configure(opponent_character, difficulty)
 		ai.target = player
 		ai.ai_enabled = false
 		opponent = ai
 	else:
-		# 連線：對手也是一隻 Player，只是輸入來源不同
+		# 連線：對手也是一隻 Player，只是輸入來源不同。
+		# 對手身上的造型部位用角色預設值 —— 那是對方的裝扮，本機沒有資料。
 		var human := Player.new()
 		human.name = "Opponent"
 		human.arena = self
 		human.team = 1
+		human.use_player_parts = false
 		add_child(human)
-		human.equip_element(opponent_element)
-		human.skin = Game.skin_data(Net.foe_skin)
-		human.body_color = human.skin.get("body", Color(1, 0.6, 0.6))
+		human.apply_character(opponent_character)
 		human.input_source = Player.InputSource.REMOTE if mode == Mode.NET_HOST \
 			else Player.InputSource.NONE
 		opponent = human
@@ -97,6 +98,12 @@ func start_battle(player_element: String, opponent_element: String,
 
 	# 客戶端：兩邊都是傀儡，血量與位置一律以主機快照為準
 	if mode == Mode.NET_CLIENT:
+		# 主機把「主機的角色」擺在左邊，所以本機玩家在主機眼中其實是右邊那位。
+		# 一開始就站到正確的位置，免得開場第一個快照把人硬拉過去。
+		player.global_position = Vector2(1470.0, GROUND_Y)
+		player.facing = -1
+		opponent.global_position = Vector2(430.0, GROUND_Y)
+		opponent.facing = 1
 		for f in [player, opponent]:
 			f.net_puppet = true
 			f.net_remote = true
@@ -141,9 +148,8 @@ func collect_snapshot():
 func apply_snapshot(snap: Array) -> void:
 	if snap.size() < 21:
 		return
-	var list := [player, opponent]
 	for i in 2:
-		var f = list[i]
+		var f = net_fighter(i)
 		if f == null or not is_instance_valid(f):
 			continue
 		var b := i * 10
@@ -161,9 +167,18 @@ func apply_snapshot(snap: Array) -> void:
 	intro_t = snap[20]
 
 
+## 網路上的編號一律以主機為準：0 = 主機那一位、1 = 客戶端那一位。
+## 客戶端的 `player` 是「自己」，也就是主機眼中的 1 號，所以索引要對調 ——
+## 不對調的話，自己的血條會顯示對手的血量、自己的角色會跟著對手跑。
+func net_fighter(index: int):
+	if mode == Mode.NET_CLIENT:
+		return opponent if index == 0 else player
+	return player if index == 0 else opponent
+
+
 ## 客戶端收到「對方放招」→ 在本地播放同一招（純特效，傷害由主機判定）
 func play_remote_cast(who: int, move_index: int) -> void:
-	var f = player if who == 0 else opponent
+	var f = net_fighter(who)
 	if f == null or not is_instance_valid(f):
 		return
 	if move_index < 0 or move_index >= f.moves.size():

@@ -1,5 +1,5 @@
 extends Node
-## 臨時煙霧測試：跑過主畫面 → 選元素 → 對戰，並讓雙方輪流施放全部 27 招。
+## 臨時煙霧測試：跑過主畫面 → 選角色 → 對戰，讓十位角色輪流上場、施放全部 30 招。
 ## 只用於 headless 驗證，驗完即刪。
 
 class DrawProbe extends Node2D:
@@ -14,7 +14,7 @@ var idx := -1
 var t := 0.0
 var switch_at := 0.0
 var fire_at := 0.0
-const PER_ELEMENT := 3.4
+const PER_CHARACTER := 3.4
 
 
 func _ready() -> void:
@@ -23,7 +23,8 @@ func _ready() -> void:
 	add_child(main)
 	probe = DrawProbe.new()
 	add_child(probe)
-	print("[smoke] 主畫面建立完成，元素數 = ", Game.ELEMENT_ORDER.size())
+	print("[smoke] 主畫面建立完成，角色數 = %d／元素數 = %d" % [
+		Characters.ORDER.size(), Game.ELEMENT_ORDER.size()])
 
 	# 逐一繪製三個選單畫面，確保 _draw 全部走過
 	await get_tree().create_timer(0.4).timeout
@@ -31,27 +32,42 @@ func _ready() -> void:
 	await get_tree().create_timer(0.2).timeout
 	main.title_screen.show_help = false
 
-	# 商店：兩個分頁都走一遍，並實際購買一個造型
+	# 商店：角色分頁選一位，再到造型分頁實際買一件部位
 	main._goto_shop()
 	await get_tree().create_timer(0.3).timeout
 	main.shop_screen.index = 4
 	await get_tree().create_timer(0.2).timeout
+	main.shop_screen._confirm()            # 換角色
 	main.shop_screen.tab = main.shop_screen.Tab.SKIN
 	main.shop_screen.index = 3
 	await get_tree().create_timer(0.3).timeout
 	Game.coins = 9999
 	main.shop_screen._confirm()
-	print("[smoke] 購買造型後 equipped_skin = ", Game.equipped_skin)
+	print("[smoke] 商店：目前角色 = %s，已穿部位 = %s" % [
+		Game.equipped_char, Game.equipped_parts])
 	await get_tree().create_timer(0.2).timeout
 
+	# 連線大廳的選角畫面（不真的連線，只確認繪製不會炸）
+	main._goto_lobby()
+	await get_tree().create_timer(0.2).timeout
+	main.lobby_screen.phase = main.lobby_screen.Phase.PICK
+	await get_tree().create_timer(0.3).timeout
+	main._goto_title()
+	await get_tree().create_timer(0.2).timeout
+
+	# 選角：先選自己（走過幾張卡片），再讓對手用「隨機」
 	main._goto_select()
 	await get_tree().create_timer(0.3).timeout
 	main.select_screen.index = 5
 	await get_tree().create_timer(0.2).timeout
-	main.select_screen._confirm()          # 選定玩家元素 → 進入選對手
+	main.select_screen.index = 9
+	await get_tree().create_timer(0.2).timeout
+	main.select_screen._confirm()          # 選定玩家角色 → 進入選對手
+	await get_tree().create_timer(0.3).timeout
+	main.select_screen.index = Characters.ORDER.size()   # 隨機對手那一格
 	await get_tree().create_timer(0.3).timeout
 	print("[smoke] 選單畫面 OK，開始對戰")
-	main._start_battle("electric", "fire")
+	main.select_screen._confirm()          # 由選角畫面實際開打
 
 
 func _process(delta: float) -> void:
@@ -64,23 +80,24 @@ func _process(delta: float) -> void:
 	if p == null or not is_instance_valid(p):
 		return
 
-	# 兩邊都保持存活，讓測試跑完全部元素
+	# 兩邊都保持存活，讓測試跑完全部角色
 	p.heal(500.0)
 	if o and is_instance_valid(o):
 		o.heal(500.0)
 
 	if t >= switch_at:
-		switch_at = t + PER_ELEMENT
+		switch_at = t + PER_CHARACTER
 		idx += 1
-		if idx >= Game.ELEMENT_ORDER.size():
+		if idx >= Characters.ORDER.size():
 			_finish()
 			return
-		var id: String = Game.ELEMENT_ORDER[idx]
-		p.equip_element(id)
+		var id: String = Characters.ORDER[idx]
+		p.apply_character(id)
 		if o and is_instance_valid(o):
-			var other: String = Game.ELEMENT_ORDER[(idx + 4) % Game.ELEMENT_ORDER.size()]
-			o.equip_element(other)
-		print("[smoke] t=%.1f 玩家元素 → %s（三招）" % [t, id])
+			var other: String = Characters.ORDER[(idx + 4) % Characters.ORDER.size()]
+			o.apply_character(other)
+		print("[smoke] t=%.1f 玩家角色 → %s（%s，三招）" % [
+			t, Characters.name_of(id), Game.element_name(Characters.element_of(id))])
 
 	# 輪流施放三招，涵蓋二段式招式的第二階段
 	if t >= fire_at:

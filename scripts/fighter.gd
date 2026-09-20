@@ -4,6 +4,11 @@ extends CharacterBody2D
 ## 火柴人戰鬥單位基底：移動、狀態異常、受擊、繪製。
 ## 玩家（Player）與敵人（Enemy）都繼承這個類別。
 ##
+## 角色（scripts/characters.gd）在 apply_character() 一次套用：
+## 數值（血量／移速／跳躍／攻防倍率／普攻手感）、外觀、元素三招、以及被動。
+## 被動分兩種 —— 純數值的（鋼體、龍威）在 apply_character() 就結束了；
+## 需要邏輯的（燃血、凍甲…）寫在 outgoing_multiplier() 與 _passive_on_hit()。
+##
 
 const GRAVITY := 1500.0
 const MAX_FALL := 1400.0
@@ -22,6 +27,7 @@ var hp := 100.0
 var move_speed := 265.0
 var jump_speed := 620.0
 var facing := 1
+var fall_mul := 1.0               # 下墜重力倍率（疾羽的輕身）
 var team := 0                     # 0 = 玩家陣營，1 = 敵人陣營
 var body_color := Color(0.92, 0.94, 1.0)
 var is_dead := false
@@ -46,6 +52,18 @@ var slow_factor := 1.0
 var poison_stacks := 0
 var poison_time := 0.0
 
+# --- 角色與被動 ---
+var char_id := ""
+var atk_mul := 1.0                # 造成的傷害倍率
+var def_mul := 1.0                # 受到的傷害倍率（越小越耐打）
+var punch_cd_mul := 1.0           # 普攻間隔倍率
+var punch_power := 1.0            # 普攻威力倍率
+var passive_id := ""              # 需要邏輯的被動，見 _passive_on_hit()
+var air_jumps := 0                # 可額外使用的空中跳躍次數
+var regen_per_sec := 0.0
+var dodge_chance := 0.0
+var haste_time := 0.0             # 受擊後的短暫加速（殘影）
+
 # --- 表現 ---
 ## 元素與三招（玩家與對手共用同一套機制）
 var element_id := ""
@@ -68,6 +86,7 @@ var pose := "idle"
 var pose_time := 0.0
 var pose_hold := 0.0              # 姿勢鎖定剩餘秒數
 var _status_particles: CPUParticles2D
+var _skin_particles: CPUParticles2D
 
 
 func _ready() -> void:
@@ -87,12 +106,20 @@ func _make_collision() -> void:
 	add_child(col)
 
 
+## 換角色時重建發光粒子（角色是在加入場景之後才套用的）
+func _refresh_skin_particles() -> void:
+	if _skin_particles != null and is_instance_valid(_skin_particles):
+		_skin_particles.queue_free()
+		_skin_particles = null
+	_make_skin_particles()
+
+
 ## 發光類造型在戰鬥中持續散發元素微粒，讓花錢買的造型在場上看得出來
 func _make_skin_particles() -> void:
 	if not skin.get("glow", false):
 		return
 	var accent: Color = skin.get("accent", body_color)
-	var p := Fx.particles(self, Vector2(0, -42), {
+	_skin_particles = Fx.particles(self, Vector2(0, -42), {
 		"amount": 22, "lifetime": 0.9, "one_shot": false, "explosiveness": 0.0,
 		"direction": Vector2(0, -1), "spread": 40.0,
 		"vmin": 6.0, "vmax": 32.0, "gravity": Vector2(0, -34),
@@ -102,7 +129,7 @@ func _make_skin_particles() -> void:
 		"colors": [Color(accent.r, accent.g, accent.b, 0.75),
 			Color(accent.r, accent.g, accent.b, 0.0)],
 	})
-	p.z_index = -1
+	_skin_particles.z_index = -1
 
 
 func _make_status_particles() -> void:
@@ -133,7 +160,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if not is_on_floor():
-		velocity.y = minf(velocity.y + GRAVITY * delta, MAX_FALL)
+		velocity.y = minf(velocity.y + GRAVITY * fall_mul * delta, MAX_FALL)
 
 	if freeze_time > 0.0 or stun_time > 0.0 or control_lock > 0.0:
 		# 被控制中：只保留慣性與摩擦
@@ -166,6 +193,85 @@ func _update_trail(delta: float) -> void:
 ## 子類別覆寫：實際的操作邏輯
 func _control(_delta: float) -> void:
 	pass
+
+
+# ------------------------------------------------------------------ 角色
+## 套用一位角色：數值 → 被動 → 外觀 → 元素三招。
+## 呼叫時機在加入場景之後（發光粒子需要節點已在樹上）。
+func apply_character(id: String) -> void:
+	if not Characters.has(id):
+		return
+	char_id = id
+	var d := Characters.data(id)
+	max_hp = float(d.get("hp", 200.0))
+	hp = max_hp
+	move_speed = float(d.get("speed", 300.0))
+	jump_speed = float(d.get("jump", 720.0))
+	atk_mul = float(d.get("atk", 1.0))
+	def_mul = float(d.get("def", 1.0))
+	punch_cd_mul = float(d.get("punch_cd", 1.0))
+	punch_power = float(d.get("punch_power", 1.0))
+	passive_id = str(d.get("passive_id", ""))
+
+	# 被動當中「只是數值」的部分在這裡一次設定完
+	air_jumps = 0
+	fall_mul = 1.0
+	regen_per_sec = 0.0
+	dodge_chance = 0.0
+	match passive_id:
+		"feather":
+			air_jumps = 1
+			fall_mul = 0.88
+		"tide_breath":
+			regen_per_sec = 2.4
+		"phantom":
+			dodge_chance = 0.15
+
+	equip_element(Characters.element_of(id))
+	_refresh_skin_particles()
+
+
+## 1v1 的傷害必定來自另一隊那一位，因此在受擊端反查攻擊方，
+## 就不必改動 30 招每一個 take_damage() 的呼叫點。
+func attacker() -> Fighter:
+	if arena == null or not is_instance_valid(arena):
+		return null
+	var others: Array = arena.fighters_of_other_team(team)
+	return others[0] if others.size() > 0 else null
+
+
+## 自己打出去的傷害倍率（含條件式被動）
+func outgoing_multiplier(target: Fighter) -> float:
+	var m := atk_mul
+	match passive_id:
+		"berserk":
+			if hp <= max_hp * 0.4:
+				m *= 1.3
+		"venom_sync":
+			if target != null and is_instance_valid(target) and target.poison_stacks > 0:
+				m *= 1.25
+	return m
+
+
+## 被打中之後才發生的被動（反制類）。只有權威端會跑到這裡。
+func _passive_on_hit(src: Fighter) -> void:
+	if passive_id == "phantom":
+		haste_time = 0.9
+	if src == null or src == self or not is_instance_valid(src) or src.is_dead:
+		return
+	match passive_id:
+		"frost_armor":
+			src.apply_slow(1.4, 0.7)
+		"magma_skin":
+			# 只燙得到近身的攻擊者，遠程對拚不會被反燒
+			if src.global_position.distance_to(global_position) < 140.0:
+				src.burn_time = maxf(src.burn_time, 2.0)
+				src.burn_dps = maxf(src.burn_dps, 5.0)
+
+
+func apply_slow(seconds: float, factor: float) -> void:
+	slow_time = maxf(slow_time, seconds)
+	slow_factor = minf(slow_factor, factor)
 
 
 # ------------------------------------------------------------------ 元素招式
@@ -228,6 +334,7 @@ func _tick_timers(delta: float) -> void:
 	invuln = maxf(0.0, invuln - delta)
 	stun_time = maxf(0.0, stun_time - delta)
 	freeze_time = maxf(0.0, freeze_time - delta)
+	haste_time = maxf(0.0, haste_time - delta)
 	slow_time = maxf(0.0, slow_time - delta)
 	hit_flash = maxf(0.0, hit_flash - delta * 4.0)
 	pose_time += delta
@@ -240,6 +347,9 @@ func _tick_timers(delta: float) -> void:
 
 
 func _tick_dots(delta: float) -> void:
+	# 自然回復（潮息）。客戶端的血量一律由主機快照覆蓋，因此不在本地回。
+	if regen_per_sec > 0.0 and not net_puppet and hp > 0.0:
+		heal(regen_per_sec * delta)
 	# 灼燒
 	if burn_time > 0.0:
 		burn_time -= delta
@@ -296,6 +406,18 @@ func take_damage(amount: float, knockback := Vector2.ZERO, opts: Dictionary = {}
 	if invuln > 0.0 and not silent:
 		return
 	var col: Color = opts.get("color", Color(1, 1, 1))
+
+	# 閃避（夜刃的殘影）：只有權威端（單機／連線主機）擲骰。
+	# 客戶端照樣會先跳一次傷害數字，但血量隨即被主機快照蓋回去，不會分歧。
+	if dodge_chance > 0.0 and not silent and not net_puppet and randf() < dodge_chance:
+		_show_dodge()
+		return
+
+	# 角色倍率：攻方的攻擊倍率 × 守方的受傷倍率
+	var src := attacker()
+	if src != null:
+		amount *= src.outgoing_multiplier(self)
+	amount *= def_mul
 	if damage_reduction > 0.0:
 		amount *= (1.0 - clampf(damage_reduction, 0.0, 0.9))
 
@@ -346,14 +468,26 @@ func take_damage(amount: float, knockback := Vector2.ZERO, opts: Dictionary = {}
 		burn_dps = maxf(burn_dps, float(b[1]))
 	if opts.has("slow"):
 		var s: Array = opts["slow"]
-		slow_time = maxf(slow_time, float(s[0]))
-		slow_factor = minf(slow_factor, float(s[1]))
+		apply_slow(float(s[0]), float(s[1]))
 	if opts.has("poison"):
 		poison_stacks = mini(20, poison_stacks + int(opts["poison"]))
 		poison_time = 6.0
 
+	if not silent:
+		_passive_on_hit(src)
+
 	if hp <= 0.0:
 		_die()
+
+
+## 閃避成功：留一個殘影並跳出「閃避」字樣
+func _show_dodge() -> void:
+	haste_time = maxf(haste_time, 0.6)
+	if arena == null or not is_instance_valid(arena):
+		return
+	spawn_afterimage(Color(0.9, 0.5, 0.85, 0.7), 0.3)
+	Fx.float_text(arena.fx_front, global_position + Vector2(0, -92), "閃避",
+		Color(0.95, 0.6, 0.95))
 
 
 ## 打斷目前動作（水龍咆哮、冰凍等）
@@ -394,7 +528,8 @@ func center() -> Vector2:
 
 
 func effective_speed() -> float:
-	return move_speed * slow_factor
+	var haste: float = 1.45 if haste_time > 0.0 else 1.0
+	return move_speed * slow_factor * haste
 
 
 func current_joints() -> Dictionary:

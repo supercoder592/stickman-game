@@ -62,7 +62,8 @@ func _draw_fighter_bar(f: Font, fighter, r: Rect2, mirrored: bool, label: String
 	if fighter == null:
 		return
 	var element: String = fighter.element_id
-	var col: Color = Game.element_color(element)
+	var col: Color = Characters.color_of(fighter.char_id) if Characters.has(fighter.char_id) \
+		else Game.element_color(element)
 	var ratio: float = clampf(fighter.hp / fighter.max_hp, 0.0, 1.0)
 	var ghost: float = maxf(ratio, _o_bar if mirrored else _p_bar)
 
@@ -81,9 +82,10 @@ func _draw_fighter_bar(f: Font, fighter, r: Rect2, mirrored: bool, label: String
 	draw_rect(fill_rect, hp_col)
 	draw_rect(bar, Color(col.r, col.g, col.b, 0.65), false, 2.0)
 
-	# 名牌
-	var elem_name := Game.element_name(element)
-	var title := "%s　·　%s" % [label, elem_name]
+	# 名牌：角色名（元素）
+	var who: String = Characters.name_of(fighter.char_id) if Characters.has(fighter.char_id) \
+		else label
+	var title := "%s　·　%s（%s）" % [label, who, Game.element_name(element)]
 	var tw := f.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 17).x
 	var tx: float = r.position.x if not mirrored else r.end.x - tw
 	_text(f, Vector2(tx, r.position.y + 15.0), title, 17, col)

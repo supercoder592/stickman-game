@@ -1,10 +1,10 @@
 extends Control
 ##
-## 連線大廳：建立房間（顯示 4 位數房號）／加入房間（輸入房號）／雙方選元素 → 開打。
+## 連線大廳：建立房間（顯示 4 位數房號）／加入房間（輸入房號）／雙方選角色 → 開打。
 ##
 
 signal cancelled()
-signal battle_ready(my_element: String, foe_element: String, is_host: bool)
+signal battle_ready(my_character: String, foe_character: String, is_host: bool)
 
 enum Phase { MENU, CODE_INPUT, IP_INPUT, RELAY_ADDR, RELAY_CODE, WAITING, PICK }
 
@@ -51,7 +51,7 @@ func _input(event: InputEvent) -> void:
 		code_buf = code_buf.substr(0, maxi(0, code_buf.length() - 1))
 	elif a == "back":
 		_input_menu(_fake_key(KEY_ESCAPE))
-	elif a.begins_with("elem"):
+	elif a.begins_with("pick"):
 		var i := int(a.substr(4))
 		if i == pick_index:
 			_input_pick(_fake_key(KEY_ENTER))
@@ -104,8 +104,8 @@ func on_shown() -> void:
 	code_buf = ""
 	status = ""
 	pick_index = 0
-	for i in Game.ELEMENT_ORDER.size():
-		if Game.ELEMENT_ORDER[i] == Game.equipped:
+	for i in Characters.ORDER.size():
+		if Characters.ORDER[i] == Game.equipped_char:
 			pick_index = i
 			break
 
@@ -123,13 +123,13 @@ func _on_room_created(code: String) -> void:
 
 func _on_joined() -> void:
 	phase = Phase.PICK
-	status = "已連線！請選擇元素"
+	status = "已連線！請選擇角色"
 	_push_pick()
 
 
 func _on_peer_joined() -> void:
 	phase = Phase.PICK
-	status = "對手已加入！請選擇元素"
+	status = "對手已加入！請選擇角色"
 	_push_pick()
 
 
@@ -148,10 +148,9 @@ func _on_battle_started(mine: String, foe: String) -> void:
 
 
 func _push_pick() -> void:
-	var id: String = Game.ELEMENT_ORDER[pick_index]
-	if Game.is_unlocked(id):
-		Game.equip(id)
-		Net.set_my_element(id)
+	var id: String = Characters.ORDER[pick_index]
+	Game.equip_character(id)
+	Net.set_my_character(id)
 
 
 # ------------------------------------------------------------------ 輸入
@@ -303,7 +302,7 @@ func _input_relay_code(k: InputEventKey) -> void:
 
 
 func _input_pick(k: InputEventKey) -> void:
-	var count := Game.ELEMENT_ORDER.size()
+	var count := Characters.ORDER.size()
 	match k.keycode:
 		KEY_W, KEY_UP:
 			pick_index = (pick_index - 1 + count) % count
@@ -312,11 +311,8 @@ func _input_pick(k: InputEventKey) -> void:
 			pick_index = (pick_index + 1) % count
 			_push_pick()
 		KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
-			var id: String = Game.ELEMENT_ORDER[pick_index]
-			if not Game.is_unlocked(id):
-				status = "%s 尚未解鎖 —— 請到商店購買" % Game.element_name(id)
-				return
-			Net.set_my_element(id)
+			var id: String = Characters.ORDER[pick_index]
+			Net.set_my_character(id)
 			Net.set_ready(not Net.my_ready)
 			status = "已準備，等待對手…" if Net.my_ready else "已取消準備"
 			if Net.is_host() and Net.both_ready():
@@ -559,21 +555,19 @@ func _draw_waiting(f: Font, w: float, h: float) -> void:
 
 func _draw_pick(f: Font, w: float, h: float) -> void:
 	# 雙方狀態列
-	_draw_side(f, Vector2(46, 126), Net.my_element, "你", Net.my_ready, Color(0.55, 0.9, 1.0))
-	_draw_side(f, Vector2(w - 300.0, 126), Net.foe_element, "對手", Net.foe_ready,
+	_draw_side(f, Vector2(46, 120), Net.my_char, "你", Net.my_ready, Color(0.55, 0.9, 1.0))
+	_draw_side(f, Vector2(w - 330.0, 120), Net.foe_char, "對手", Net.foe_ready,
 		Color(1.0, 0.55, 0.55))
 	var vs := "VS"
 	var vw := f.get_string_size(vs, HORIZONTAL_ALIGNMENT_LEFT, -1, 26).x
-	_text(f, Vector2(w * 0.5 - vw * 0.5, 158.0), vs, 26, Color(1, 0.75, 0.35))
+	_text(f, Vector2(w * 0.5 - vw * 0.5, 152.0), vs, 26, Color(1, 0.75, 0.35))
 
-	# 元素列表
-	var y := 210.0
-	for i in Game.ELEMENT_ORDER.size():
-		var id: String = Game.ELEMENT_ORDER[i]
-		var data: Dictionary = Game.ELEMENTS[id]
-		var col: Color = data["color"]
-		var owned := Game.is_unlocked(id)
-		var r := Rect2(w * 0.5 - 300.0, y, 600.0, 44.0)
+	# 角色列表
+	var y := 196.0
+	for i in Characters.ORDER.size():
+		var id: String = Characters.ORDER[i]
+		var col: Color = Characters.color_of(id)
+		var r := Rect2(w * 0.5 - 300.0, y, 600.0, 38.0)
 		var sel := i == pick_index
 
 		var bg := Color(0.08, 0.09, 0.14, 0.9)
@@ -585,19 +579,17 @@ func _draw_pick(f: Font, w: float, h: float) -> void:
 		else:
 			draw_rect(r, Color(0.28, 0.32, 0.46, 0.3), false, 1.0)
 
-		var dim: float = 1.0 if owned else 0.4
-		var c := r.position + Vector2(28, r.size.y * 0.5)
-		draw_colored_polygon(Fx.star(c, 6, 12.0, 5.0, t * 0.8), Color(col.r, col.g, col.b, dim))
-		var name_col: Color = col if owned else Color(0.5, 0.53, 0.64)
-		_text(f, r.position + Vector2(56, r.size.y * 0.5 + 6.0),
-			"%s　%s" % [data["name"], data["tagline"]], 17, name_col)
-		tap.add(r.grow(3.0), "elem%d" % i)
-		if not owned:
-			var lk := "商店未解鎖"
-			var lw2 := f.get_string_size(lk, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
-			_text(f, Vector2(r.end.x - lw2 - 12.0, r.position.y + r.size.y * 0.5 + 5.0),
-				lk, 12, Color(0.75, 0.5, 0.5))
-		y += 48.0
+		var c := r.position + Vector2(26, r.size.y * 0.5)
+		draw_colored_polygon(Fx.star(c, 6, 11.0, 4.6, t * 0.8), col)
+		_text(f, r.position + Vector2(52, r.size.y * 0.5 + 6.0),
+			"%s　%s" % [Characters.name_of(id), Characters.title_of(id)], 16, col)
+		var sub := "%s　·　%s" % [Game.element_name(Characters.element_of(id)),
+			str(Characters.passive_of(id).get("name", ""))]
+		var sw := f.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+		_text(f, Vector2(r.end.x - sw - 12.0, r.position.y + r.size.y * 0.5 + 5.0),
+			sub, 12, Color(0.72, 0.76, 0.92))
+		tap.add(r.grow(2.0), "pick%d" % i)
+		y += 40.0
 
 	var hint := "↑↓ 選擇　Enter 準備／取消準備　Esc 離開房間"
 	if Net.is_host():
@@ -610,9 +602,10 @@ func _draw_side(f: Font, pos: Vector2, id: String, label: String, ready: bool, t
 	_text(f, pos, label, 13, tint)
 	var name_text := "選擇中…"
 	var col := Color(0.6, 0.64, 0.8)
-	if id != "" and Game.ELEMENTS.has(id):
-		name_text = Game.element_name(id)
-		col = Game.element_color(id)
+	if Characters.has(id):
+		name_text = "%s（%s）" % [Characters.name_of(id),
+			Game.element_name(Characters.element_of(id))]
+		col = Characters.color_of(id)
 	draw_circle(pos + Vector2(12, 22), 11.0, Color(col.r, col.g, col.b, 0.25))
 	draw_colored_polygon(Fx.star(pos + Vector2(12, 22), 6, 9.0, 3.6, t * 0.7), col)
 	_text(f, pos + Vector2(32, 30), name_text, 22, col)

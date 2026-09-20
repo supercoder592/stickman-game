@@ -1,7 +1,7 @@
 extends Control
 ##
 ## 主畫面。標題、選單、以及一段用程式畫出來的動態背景
-## （漸層夜空 + 遠山 + 九顆環繞的元素光球 + 揮拳的火柴人剪影）。
+## （漸層夜空 + 遠山 + 十顆環繞的元素光球 + 揮拳的火柴人剪影）。
 ##
 
 signal start_pressed()
@@ -130,10 +130,11 @@ func _draw() -> void:
 		_draw_menu(f, w, h)
 	tap.commit()
 
-	var skin_name := str(Game.current_skin().get("name", "白練"))
+	var who := "%s・%s" % [Characters.name_of(Game.equipped_char),
+		Game.element_name(Characters.element_of(Game.equipped_char))]
 	var mob: String = "開" if Game.mobile_mode else "關"
-	var foot := "%d 勝　·　%d 金幣　·　造型：%s　·　手機模式：%s（F5 切換）" \
-		% [Game.wins, Game.coins, skin_name, mob]
+	var foot := "%d 勝　·　%d 金幣　·　角色：%s　·　手機模式：%s（F5 切換）" \
+		% [Game.wins, Game.coins, who, mob]
 	if OS.has_feature("web"):
 		foot += "　·　網頁版連線需填 wss:// 中繼位址"
 
@@ -197,7 +198,7 @@ func _draw_background(w: float, h: float) -> void:
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
-## 九顆元素光球繞著標題緩慢公轉
+## 十顆元素光球繞著標題緩慢公轉（每個元素對應一位角色）
 func _draw_orbs(w: float, h: float) -> void:
 	var cx := w * 0.5
 	var cy := h * 0.42
@@ -274,9 +275,9 @@ func _draw_help(f: Font, w: float, h: float) -> void:
 		["A / D　（或 ← →）", "左右移動"],
 		["W / Space", "跳躍（可變高度）"],
 		["J", "普通攻擊"],
-		["U　或　1", "元素招式一（本命招）"],
-		["I　或　2", "元素招式二"],
-		["O　或　3", "元素招式三"],
+		["U　或　1", "招式一（角色本命招）"],
+		["I　或　2", "招式二"],
+		["O　或　3", "招式三"],
 		["Esc", "返回 / 離開"],
 	]
 	var y := panel.position.y + 92.0

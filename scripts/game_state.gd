@@ -1,7 +1,10 @@
 extends Node
 ##
 ## 全域狀態（Autoload 名稱：Game）
-## 負責：金幣、元素解鎖狀態、目前裝備元素、存檔、以及可顯示中日韓字型的載入。
+## 負責：金幣、目前選用的角色、造型部位、存檔、以及可顯示中日韓字型的載入。
+##
+## 角色資料表在 scripts/characters.gd；一個角色綁一個元素，
+## 因此這裡保留的 `equipped`（元素）永遠等於 `equipped_char` 所屬的元素。
 ##
 
 const SAVE_PATH := "user://stickman_save.json"
@@ -14,7 +17,7 @@ const BASE_REBUY_COST := 300
 
 const ELEMENT_ORDER: PackedStringArray = [
 	"electric", "fire", "water", "wind",
-	"ice", "poison", "lava", "metal", "dragon",
+	"ice", "poison", "lava", "metal", "dragon", "shadow",
 ]
 
 ## 每個元素有三招：招式一為本命招，招式二、三由 MoveKit 元件組成。
@@ -108,6 +111,16 @@ const ELEMENTS := {
 			{"name": "龍之怒·極限咆哮", "desc": "蓄力 1 秒（全霸體）後發射貫穿全屏的龍形光束。"},
 			{"name": "龍之波動", "desc": "射出會追蹤敵人的巨大龍能量彈，命中爆散。"},
 			{"name": "流星群", "desc": "天降八顆隕石覆蓋整片戰場。"},
+		],
+	},
+	"shadow": {
+		"name": "暗影", "tier": "技能樹", "cost": 0,
+		"tagline": "瞬移背刺與擾亂",
+		"color": Color(0.85, 0.25, 0.65),
+		"moves": [
+			{"name": "影渡·瞬身斬", "desc": "散成墨影瞬移到敵人背後斬擊，背刺傷害 +25% 並使其失衡。"},
+			{"name": "魔影·追牙", "desc": "射出兩顆會追蹤的影牙，命中減速；自身順勢後撤。"},
+			{"name": "宵闇·虛影結界", "desc": "展開影霧：減傷 50%、霧中敵人減速，並留下兩個虛影。"},
 		],
 	},
 }
@@ -254,6 +267,8 @@ var equipped_skin: String = "plain"
 var unlocked_parts: Array[String] = []
 ## 目前穿著：slot -> option
 var equipped_parts: Dictionary = {}
+## 目前選用的角色（Characters.ORDER 之一）。`equipped` 是它的元素，兩者同步更新。
+var equipped_char: String = ""
 var equipped: String = ""
 var starter_chosen: bool = false
 var wins: int = 0
@@ -269,8 +284,10 @@ func _ready() -> void:
 		for id in ELEMENT_ORDER:
 			unlocked.append(id)
 		starter_chosen = true
-		if equipped == "":
-			equipped = ELEMENT_ORDER[0]
+	# 角色決定元素：存檔沒有（或是舊版存檔）時挑名單第一位
+	if not Characters.has(equipped_char):
+		equipped_char = Characters.ORDER[0]
+	equipped = Characters.element_of(equipped_char)
 	# 觸控裝置自動開啟手機模式（存檔若已有設定則以存檔為準）
 	if not _mobile_mode_saved:
 		mobile_mode = DisplayServer.is_touchscreen_available() \
@@ -333,6 +350,47 @@ func element_color(id: String) -> Color:
 
 func element_name(id: String) -> String:
 	return ELEMENTS.get(id, {}).get("name", id)
+
+
+# ---------------------------------------------------------------- 角色
+func character_name(id: String) -> String:
+	return Characters.name_of(id)
+
+
+func character_color(id: String) -> Color:
+	return Characters.color_of(id)
+
+
+func equip_character(id: String) -> bool:
+	if not Characters.has(id):
+		return false
+	equipped_char = id
+	equipped = Characters.element_of(id)
+	loadout_changed.emit()
+	save_game()
+	return true
+
+
+## 角色的完整外觀。
+## 角色自帶一套預設部位（剪影就是他的識別），玩家在商店換過的部位再蓋上去 ——
+## 沒動過的部位維持角色原樣，動過的就照玩家的意思，兩邊都不會失效。
+func character_look(id: String, use_player_parts := true) -> Dictionary:
+	var look := Characters.base_look(id)
+	if not use_player_parts:
+		return look
+	for slot in PART_SLOTS:
+		var opt := str(equipped_parts.get(slot, ""))
+		if opt != "" and PARTS.get(slot, {}).has(opt) and is_part_unlocked(slot, opt):
+			look[slot] = opt
+	# 部分部位會改變體感：重拳套更粗壯、能量拳套會發光
+	match look.get("hands", ""):
+		"heavy":
+			look["limb_w"] = maxf(float(look.get("limb_w", 1.0)), 1.18)
+		"energy":
+			look["glow"] = true
+	if look.get("chest", "") == "armor":
+		look["limb_w"] = maxf(float(look.get("limb_w", 1.0)), 1.15)
+	return look
 
 
 ## 所有元素一律免費、預設全部解鎖。
@@ -399,8 +457,8 @@ func equipped_part(slot: String) -> String:
 	return str(equipped_parts.get(slot, DEFAULT_PARTS.get(slot, "")))
 
 
-## 組出給 StickFigure 用的外觀資料。
-## 顏色跟著元素走 —— 換屬性就換整體配色，拳套也自動染上元素色。
+## 組出給 StickFigure 用的外觀資料（只看元素，不含角色的預設部位）。
+## 角色在場上的外觀請用 character_look()；這支留給「只有元素、沒有角色」的場合。
 func build_look(element_id := "") -> Dictionary:
 	var ec: Color = element_color(element_id) if ELEMENTS.has(element_id) else Color(0.9, 0.93, 1.0)
 	var look := {
@@ -426,10 +484,6 @@ func build_look(element_id := "") -> Dictionary:
 # ---------------------------------------------------------------- 造型（舊版整套，保留相容）
 func skin_data(id: String) -> Dictionary:
 	return SKINS.get(id, SKINS["plain"])
-
-
-func current_skin() -> Dictionary:
-	return build_look(equipped)
 
 
 func is_skin_unlocked(id: String) -> bool:
@@ -495,8 +549,9 @@ func unlock_all_debug() -> void:
 		if not unlocked.has(id):
 			unlocked.append(id)
 	starter_chosen = true
-	if equipped == "":
-		equipped = "electric"
+	if not Characters.has(equipped_char):
+		equipped_char = Characters.ORDER[0]
+	equipped = Characters.element_of(equipped_char)
 	loadout_changed.emit()
 
 
@@ -506,6 +561,7 @@ func save_game() -> void:
 		"coins": coins,
 		"unlocked": unlocked,
 		"equipped": equipped,
+		"equipped_char": equipped_char,
 		"starter_chosen": starter_chosen,
 		"wins": wins,
 		"unlocked_skins": unlocked_skins,
@@ -534,13 +590,16 @@ func load_game() -> void:
 		return
 	coins = int(parsed.get("coins", 0))
 	equipped = str(parsed.get("equipped", ""))
+	equipped_char = str(parsed.get("equipped_char", ""))
 	starter_chosen = bool(parsed.get("starter_chosen", false))
 	wins = int(parsed.get("wins", 0))
 	unlocked.clear()
 	for id in parsed.get("unlocked", []):
 		if ELEMENTS.has(str(id)):
 			unlocked.append(str(id))
-	if not unlocked.has(equipped):
+	if Characters.has(equipped_char):
+		equipped = Characters.element_of(equipped_char)
+	elif not unlocked.has(equipped):
 		equipped = unlocked[0] if unlocked.size() > 0 else ""
 
 	unlocked_skins.clear()
@@ -575,7 +634,8 @@ func load_game() -> void:
 func reset_progress() -> void:
 	coins = 0
 	unlocked.clear()
-	equipped = ""
+	equipped_char = Characters.ORDER[0]
+	equipped = Characters.element_of(equipped_char)
 	starter_chosen = false
 	wins = 0
 	unlocked_skins = ["plain"]

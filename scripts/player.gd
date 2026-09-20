@@ -7,6 +7,9 @@ extends Fighter
 ##
 ## 操作：A/D 移動、W 跳躍、J 普攻、U/I/O（或 1/2/3）三個元素招式。
 ##
+## 數值（血量、移速、普攻手感）由角色決定，見 Fighter.apply_character()；
+## 這裡只放「操作」相關的東西。
+##
 
 const PUNCH_CD := 0.34
 const PUNCH_DAMAGE := 13.0
@@ -20,6 +23,8 @@ enum InputSource { LOCAL, REMOTE, NONE }
 
 var punch_cd := 0.0
 var input_enabled := true
+## 連線對手用角色原本的造型，不套用本機玩家買的部位
+var use_player_parts := true
 var input_source: int = InputSource.LOCAL
 
 # 這一幀的輸入意圖（無論來源為何，控制邏輯都只讀這些欄位）
@@ -39,21 +44,22 @@ var _jump_from_touch := false
 
 var _coyote := 0.0
 var _jump_buffer := 0.0
+var _air_jumps_left := 0
 var _punch_t := -1.0
 
 
 func _ready() -> void:
-	max_hp = 200.0
-	move_speed = 300.0
-	jump_speed = 720.0
 	team = 0
 	_refresh_look()
 	super()
 
 
-## 外觀由五個部位組成，顏色跟著當前元素走
+## 外觀 = 角色的預設部位，再蓋上玩家在商店換過的部位。
+## use_player_parts = false 的是連線對手，他要維持自己角色的原樣。
 func _refresh_look() -> void:
-	skin = Game.build_look(element_id)
+	if not Characters.has(char_id):
+		return
+	skin = Game.character_look(char_id, use_player_parts)
 	body_color = skin.get("body", Color(0.95, 0.97, 1.0))
 
 
@@ -148,12 +154,22 @@ func _control(delta: float) -> void:
 	# 跳躍（含土狼時間與預輸入緩衝）
 	if is_on_floor():
 		_coyote = COYOTE
+		_air_jumps_left = air_jumps
 	else:
 		_coyote = maxf(0.0, _coyote - delta)
 	_jump_buffer = maxf(0.0, _jump_buffer - delta)
 
 	var jump_held := in_jump_held
-	if jump_held and _jump_buffer > 0.0 and _coyote > 0.0:
+	var grounded_jump: bool = jump_held and _jump_buffer > 0.0 and _coyote > 0.0
+	# 空中跳躍（疾羽的輕身）：土狼時間用完之後才算，否則一次起跳會吃掉兩段
+	var air_jump: bool = jump_held and _jump_buffer > 0.0 and not grounded_jump \
+		and _air_jumps_left > 0 and not is_on_floor()
+	if air_jump:
+		_air_jumps_left -= 1
+		if arena:
+			var accent: Color = skin.get("accent", Color(1, 1, 1))
+			Fx.shockwave(arena.fx_back, global_position, 90.0, accent, 0.3, 0.45)
+	if grounded_jump or air_jump:
 		velocity.y = -jump_speed
 		_coyote = 0.0
 		_jump_buffer = 0.0
@@ -221,7 +237,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _punch() -> void:
 	if punch_cd > 0.0 or not can_act():
 		return
-	punch_cd = PUNCH_CD
+	punch_cd = PUNCH_CD * punch_cd_mul
 	_punch_t = 0.0
 	set_pose("punch", 0.22)
 	if is_on_floor():
@@ -251,6 +267,8 @@ func _punch_hit() -> void:
 		"energy":
 			dmg = PUNCH_DAMAGE * 1.45
 			kb_x = 340.0
+	# 角色的普攻威力（攻擊倍率另外在 Fighter.take_damage 結算）
+	dmg *= punch_power
 
 	var hit := false
 	for e in arena.fighters_of_other_team(team):

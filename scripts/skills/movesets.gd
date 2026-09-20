@@ -2,6 +2,7 @@ class_name Movesets
 extends RefCounted
 ##
 ## 招式表：把每個元素的三招對應到實際的 Skill 腳本／類別。
+## 十個元素各三招 —— 每位角色綁一個元素（見 scripts/characters.gd）。
 ##
 ## 招式一是各元素的本命招（獨立檔案，特效最完整），
 ## 招式二、三放在 moves_<元素>.gd，由 MoveKit 的元件組成。
@@ -17,6 +18,7 @@ const SIGNATURE := {
 	"lava": preload("res://scripts/skills/skill_lava.gd"),
 	"metal": preload("res://scripts/skills/skill_metal.gd"),
 	"dragon": preload("res://scripts/skills/skill_dragon.gd"),
+	"shadow": preload("res://scripts/skills/skill_shadow.gd"),
 }
 
 const EXTRA := {
@@ -29,6 +31,7 @@ const EXTRA := {
 	"lava": preload("res://scripts/skills/moves_lava.gd"),
 	"metal": preload("res://scripts/skills/moves_metal.gd"),
 	"dragon": preload("res://scripts/skills/moves_dragon.gd"),
+	"shadow": preload("res://scripts/skills/moves_shadow.gd"),
 }
 
 

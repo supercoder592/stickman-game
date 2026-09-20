@@ -44,7 +44,7 @@ signal peer_left()
 signal join_failed(reason: String)
 signal joined_room()
 signal lobby_updated()
-signal battle_started(my_element: String, foe_element: String)
+signal battle_started(my_character: String, foe_character: String)
 
 enum Role { NONE, HOST, CLIENT }
 
@@ -74,9 +74,9 @@ var _p2p_punches := 0
 var _p2p_got_reply := false
 
 ## 大廳狀態：兩邊各自選的元素與造型
-var my_element := ""
-var foe_element := ""
-var foe_skin := "plain"
+## 大廳中雙方選的「角色」（Characters.ORDER 之一）
+var my_char := ""
+var foe_char := ""
 var foe_ready := false
 var my_ready := false
 
@@ -133,8 +133,8 @@ func host_room() -> bool:
 
 	role = Role.HOST
 	active = true
-	my_element = ""
-	foe_element = ""
+	my_char = ""
+	foe_char = ""
 	my_ready = false
 	foe_ready = false
 	set_process(true)
@@ -570,8 +570,8 @@ func shutdown() -> void:
 	transport = Transport.LAN
 	active = false
 	room_code = ""
-	my_element = ""
-	foe_element = ""
+	my_char = ""
+	foe_char = ""
 	my_ready = false
 	foe_ready = false
 	arena = null
@@ -703,8 +703,8 @@ func _on_server_disconnected() -> void:
 
 
 # ------------------------------------------------------------------ 大廳同步
-func set_my_element(id: String) -> void:
-	my_element = id
+func set_my_character(id: String) -> void:
+	my_char = id
 	_sync_lobby()
 
 
@@ -717,8 +717,7 @@ func _sync_lobby() -> void:
 	if not active:
 		return
 	_send("lobby", [{
-		"element": my_element,
-		"skin": Game.equipped_skin,
+		"char": my_char,
 		"ready": my_ready,
 	}])
 	lobby_updated.emit()
@@ -726,28 +725,27 @@ func _sync_lobby() -> void:
 
 @rpc("any_peer", "reliable", "call_remote")
 func _rpc_lobby(data: Dictionary) -> void:
-	foe_element = str(data.get("element", ""))
-	foe_skin = str(data.get("skin", "plain"))
+	foe_char = str(data.get("char", ""))
 	foe_ready = bool(data.get("ready", false))
 	lobby_updated.emit()
 
 
 func both_ready() -> bool:
-	return active and my_element != "" and foe_element != "" and my_ready and foe_ready
+	return active and my_char != "" and foe_char != "" and my_ready and foe_ready
 
 
 ## 主機呼叫：開打
 func start_battle() -> void:
 	if not is_host() or not both_ready():
 		return
-	_send("start", [my_element, foe_element])
-	battle_started.emit(my_element, foe_element)
+	_send("start", [my_char, foe_char])
+	battle_started.emit(my_char, foe_char)
 
 
 @rpc("authority", "reliable", "call_remote")
-func _rpc_start(host_element: String, client_element: String) -> void:
-	# 客戶端視角：自己是 client_element，對手是 host_element
-	battle_started.emit(client_element, host_element)
+func _rpc_start(host_char: String, client_char: String) -> void:
+	# 客戶端視角：自己是 client_char，對手是 host_char
+	battle_started.emit(client_char, host_char)
 
 
 # ------------------------------------------------------------------ 輸入（客戶端 → 主機）

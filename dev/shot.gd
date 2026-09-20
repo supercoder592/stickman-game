@@ -1,5 +1,5 @@
 extends Node
-## 臨時截圖腳本：主畫面、選元素、對戰、結算，以及各元素的招式演出。驗完即刪。
+## 臨時截圖腳本：主畫面、選角色、對戰、結算，以及各元素的招式演出。驗完即刪。
 
 const OUT := "res://dev/shots/"
 
@@ -40,7 +40,7 @@ func _run() -> void:
 	await get_tree().create_timer(0.4).timeout
 	main.shop_screen.index = 6
 	await get_tree().create_timer(0.3).timeout
-	await _shot("shop_element")
+	await _shot("shop_character")
 
 	# 商店：造型分頁 —— 五個部位各截一張，並買下部分部位組出一套
 	Game.coins = 99999
@@ -57,10 +57,10 @@ func _run() -> void:
 		await get_tree().create_timer(0.2).timeout
 	await _shot("part_full")
 
-	# 選元素（玩家）
+	# 選角色（玩家）
 	main._goto_select()
 	await get_tree().create_timer(0.4).timeout
-	main.select_screen.index = 8          # 龍之力：展示三招
+	main.select_screen.index = 8          # 龍胤：展示數值、被動與三招
 	await get_tree().create_timer(0.3).timeout
 	await _shot("select_player")
 
@@ -72,11 +72,11 @@ func _run() -> void:
 	await _shot("select_opponent")
 
 	# 對戰：開場倒數
-	main._start_battle("fire", "ice")
+	main._start_battle("blaze", "frost")
 	await get_tree().create_timer(0.5).timeout
 	await _shot("battle_intro")
 
-	# 各元素招式演出
+	# 各元素招式演出（招式仍以元素為單位，所以直接換裝招式即可）
 	var plan := [
 		["electric", 1, 0.9], ["electric", 2, 0.5],
 		["fire", 1, 0.25], ["fire", 2, 0.5],
@@ -87,6 +87,7 @@ func _run() -> void:
 		["lava", 1, 0.5], ["lava", 2, 0.35],
 		["metal", 1, 0.25], ["metal", 2, 0.5],
 		["dragon", 1, 0.8], ["dragon", 2, 1.0],
+		["shadow", 0, 0.3], ["shadow", 1, 0.4], ["shadow", 2, 0.9],
 	]
 	var p = main.arena.player
 	var o = main.arena.opponent

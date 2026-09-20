@@ -2,7 +2,7 @@ class_name Enemy
 extends Fighter
 ##
 ## 對手火柴人（1v1）。
-## 擁有和玩家完全相同的三招元素招式，會依距離挑選合適的招式：
+## 和玩家一樣是名單上的角色（數值、招式、剪影都相同），會依距離挑選合適的招式：
 ##   近距離 → 突進／近戰型（招式一）
 ##   中距離 → 彈道型（招式二）
 ##   任何距離 → 增益／場域型（招式三，冷卻好就放）
@@ -34,30 +34,29 @@ var _strafe_t := 0.0
 func _ready() -> void:
 	team = 1
 	body_color = Color(1.0, 0.45, 0.45)
-	max_hp = 200.0
-	move_speed = 250.0
-	jump_speed = 620.0
 	super()
 	_strafe = 1.0 if randf() < 0.5 else -1.0
 
 
-## 由 Arena 呼叫，設定對手的元素與強度
-func configure(element: String, difficulty := 1.0) -> void:
-	equip_element(element)
-	# 對手固定是「鬼」的外型（骷髏臉 + 雙角），再依元素染色以便辨識
-	var ec := Game.element_color(element)
-	body_color = ec.lerp(Color(1, 0.5, 0.5), 0.35)
-	# 對手固定是「鬼」的外型，並和玩家一樣戴上元素色拳套
-	skin = {
-		"body": body_color, "accent": ec,
-		"head": "horned", "hands": "basic", "chest": "haori",
-		"width": 5.5, "build": 1.06, "limb_w": 1.1, "glow": false, "trail": false,
-	}
-	max_hp = 200.0
-	hp = max_hp
-	move_speed = 230.0 + 40.0 * difficulty
+## 由 Arena 呼叫：對手也是名單上的一位角色（同樣的數值、招式與剪影），
+## 差別只在操作者是 AI，而且身上帶一層紅色敵意色調以便一眼分辨敵我。
+func configure(character: String, difficulty := 1.0) -> void:
+	apply_character(character)
 	reaction = clampf(0.75 - 0.25 * difficulty, 0.22, 0.9)
 	aggression = clampf(0.45 + 0.35 * difficulty, 0.3, 0.95)
+	# 難度只調整 AI 的反應與積極度，不動角色數值，
+	# 否則「同一位角色」在玩家手上和 AI 手上會強度不同。
+	move_speed *= lerpf(0.94, 1.04, clampf(difficulty, 0.0, 1.0))
+
+
+## 對手的外觀：角色原本的造型（不套用玩家買的部位），再染上敵意紅
+func _refresh_look() -> void:
+	if not Characters.has(char_id):
+		return
+	skin = Game.character_look(char_id, false)
+	var base: Color = skin.get("body", Color(1, 1, 1))
+	body_color = base.lerp(Color(1, 0.45, 0.45), 0.3)
+	skin["body"] = body_color
 
 
 func _physics_process(delta: float) -> void:
@@ -175,7 +174,8 @@ func _attack() -> void:
 	var rect_x: float = -44.0 if f < 0.0 else -4.0
 	var rect := Rect2(origin + Vector2(rect_x, -26.0), Vector2(48.0, 52.0))
 	if target and is_instance_valid(target) and target.body_rect().intersects(rect):
-		target.take_damage(ATTACK_DAMAGE, Vector2(f * 240.0, -230.0), {"color": Color(1, 0.5, 0.5)})
+		target.take_damage(ATTACK_DAMAGE * punch_power, Vector2(f * 240.0, -230.0),
+			{"color": Color(1, 0.5, 0.5)})
 		arena.shake(4.0, 0.12)
 	else:
 		Fx.particles(arena.fx_front, origin, {
