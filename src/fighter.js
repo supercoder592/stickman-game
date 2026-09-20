@@ -8,7 +8,7 @@
 //   receiveHit()    對方打進來（閃避、格擋、減傷、擊退、狀態異常都在這）
 // 招式與普攻都呼叫這兩支，所以之後加新招不必重寫任何結算邏輯。
 
-import { BASIC, WEAPON_REACH, MAX_METER, knockbackScale } from './combat.js';
+import { BASIC, MAX_METER, knockbackScale } from './combat.js';
 import { getChar } from './characters.js';
 import { BTN } from './input.js';
 import { WORLD } from './render.js';
@@ -66,12 +66,14 @@ export class Fighter {
     this.shockTime = 0;
     this.slow = 0; this.slowMul = 1;
     this.poison = 0; this.poisonTime = 0;
+    this.bleed = 0; this.bleedTime = 0;       // 鏈鋸的流血，可疊
+    this.marked = 0;                          // 被鉤索標記的剩餘時間
     this.haste = 0;
 
     this.cds = [0, 0];
     this.dashCd = 0;
     this.airJumps = 0;
-    this.airJumpsMax = this.char.passive.name === '輕身' ? 1 : 0;
+    this.airJumpsMax = 0;                  // 目前沒有角色有二段跳，保留機制
     this.airDashes = 1;
     this.dead = false;
     this.trailT = 0;
@@ -105,7 +107,7 @@ export class Fighter {
   }
 
   reachMul() {
-    return (WEAPON_REACH[this.char.look.weapon] || 1) * (this.char.build.scale || 1);
+    return ((this.char.weapon && this.char.weapon.reach) || 1) * (this.char.build.scale || 1);
   }
 
   atkMul() {
@@ -186,6 +188,12 @@ export class Fighter {
       this.damageOverTime(this.poison * 1.6 * dt, '#b46bff');
       if (this.poisonTime <= 0) this.poison = 0;
     }
+    if (this.bleed > 0) {
+      this.bleedTime -= dt;
+      this.damageOverTime(this.bleed * 2.1 * dt, '#d1342f');
+      if (this.bleedTime <= 0) this.bleed = 0;
+    }
+    this.marked = Math.max(0, this.marked - dt);
   }
 
   damageOverTime(amount, color) {
@@ -307,7 +315,7 @@ export class Fighter {
     this.comboKey = null;
     this.comboWindow = 0;
     // 伏特的被動：出招速度更快
-    if (this.char.passive.name === '超載') this.attack.rate = 1.18;
+    if (this.char.passive.name === '導電') this.attack.rate = 1.18;
     if (def.step && this.onGround) this.vx = this.facing * def.step;
     this.battle?.audio.play('swing');
   }
@@ -320,6 +328,8 @@ export class Fighter {
     const k = a.t / def.dur;
 
     if (def.armorFrom && a.t >= def.armorFrom) this.armor = Math.max(this.armor, 0.08);
+    // 重量級：揮舞大傢伙的人不會被小拳打斷
+    if (this.char.passive.name === '重量級') this.armor = Math.max(this.armor, 0.06);
 
     if (a.t >= def.hit[0] && a.t <= def.hit[1]) {
       const r = this.attackRect(def);
@@ -331,7 +341,7 @@ export class Fighter {
           kbx: def.kb[0], kby: def.kb[1],
           hitstun: def.hitstun,
           heavy: def.heavy,
-          shock: this.char.passive.name === '超載' && a.key === 'light3' ? 0.45 : 0,
+          shock: this.char.passive.name === '導電' && a.key === 'light3' ? 0.45 : 0,
         });
         if (landed) {
           this.meter = Math.min(MAX_METER, this.meter + (def.meter || 4));
@@ -385,15 +395,18 @@ export class Fighter {
 
     // 角色被動的加成
     const p = this.char.passive.name;
-    if (p === '延燒' && target.burn > 0) dmg *= 1.15;
-    if (p === '毒素共鳴' && target.poison > 0) dmg *= 1.25;
+    if (p === '高溫' && target.burn > 0) dmg *= 1.15;
+    if (p === '索敵' && target.marked > 0) dmg *= 1.2;
+    if (p === '死神凝視' && target.hp / target.maxHp < 0.35) dmg *= 1.3;
+    if (p === '處刑' && target.hitstun > 0) dmg *= 1.25;
     if (p === '間合') {
       const d = Math.abs(target.x - this.x);
       dmg *= 1 + clamp(d / 520, 0, 1) * 0.2;
     }
 
     const hit = { ...o, dmg };
-    if (p === '延燒' && !hit.burn) hit.burn = 1.6;
+    if (p === '高溫' && !hit.burn) hit.burn = 1.8;
+    if (p === '撕裂' && !hit.bleed) hit.bleed = 1;
 
     const landed = target.receiveHit(this, hit);
     if (landed) {
@@ -438,13 +451,15 @@ export class Fighter {
     // 狀態異常（DoT 類即使霸體或格擋也會附著）
     if (hit.burn) { this.burn = Math.max(this.burn, hit.burn); this.burnDps = Math.max(this.burnDps, 4.5); }
     if (hit.poison) { this.poison = Math.min(10, this.poison + hit.poison); this.poisonTime = 5; }
+    if (hit.bleed) { this.bleed = Math.min(8, this.bleed + hit.bleed); this.bleedTime = 4; }
     if (hit.slow) { this.slow = Math.max(this.slow, hit.slow); this.slowMul = Math.min(this.slowMul, hit.slowMul || 0.7); }
 
     const armored = this.armor > 0 && !hit.ignoreArmor;
     if (!armored && !blocked) {
       if (hit.freeze) { this.freeze = Math.max(this.freeze, hit.freeze); this.attack = null; }
       if (hit.shock) this.shockTime = Math.max(this.shockTime, hit.shock);
-      const kbs = knockbackScale(this) * (this.char.passive.name === '鋼體' ? 0.6 : 1);
+      const tough = ['鋼體', '重量級'].includes(this.char.passive.name) ? 0.6 : 1;
+      const kbs = knockbackScale(this) * tough;
       const dirX = hit.kbDir !== undefined ? hit.kbDir : sign(this.x - from.x) || from.facing;
       this.vx = (hit.kbx || 0) * kbs * dirX;
       this.vy = (hit.kby || 0) * kbs;
@@ -474,14 +489,9 @@ export class Fighter {
   counterPassives(from, dmg) {
     if (!from || from === this || from.dead) return;
     const p = this.char.passive.name;
-    if (p === '凍甲') {
-      from.slow = Math.max(from.slow, 1.4);
-      from.slowMul = Math.min(from.slowMul, 0.7);
-      this.battle?.fx.ring(from.x, from.y - 50, '#9be8ff', { r0: 10, r1: 60, life: 0.3, width: 2 });
-    }
-    if (p === '熔岩之軀' && Math.abs(from.x - this.x) < 150) {
-      from.burn = Math.max(from.burn, 2);
-      from.burnDps = Math.max(from.burnDps, 4.5);
+    if (p === '高溫' && Math.abs(from.x - this.x) < 150) {
+      from.burn = Math.max(from.burn, 1.6);
+      from.burnDps = Math.max(from.burnDps, 4.0);
     }
   }
 
@@ -508,7 +518,7 @@ export class Fighter {
 
   // ---------------------------------------------------------------- 物理
   physics(dt) {
-    const gmul = this.char.passive.name === '輕身' ? 0.86 : (this.char.stats.weight > 1.1 ? 1.08 : 1);
+    const gmul = this.char.stats.weight > 1.1 ? 1.08 : 1;
     if (!this.onGround) {
       this.vy = Math.min(this.vy + GRAVITY * gmul * dt, MAX_FALL);
     }
@@ -598,13 +608,14 @@ export class Fighter {
     this.poseK = 0;
   }
 
+  /** 高速移動時留殘影（衝刺、被打飛），武器的揮擊拖尾另外在 battle.js 畫 */
   updateTrail(dt) {
-    if (!this.char.look.trail || !this.battle) return;
-    if (Math.abs(this.vx) < 320 && Math.abs(this.vy) < 420) return;
+    if (!this.battle) return;
+    if (Math.abs(this.vx) < 420 && Math.abs(this.vy) < 520) return;
     this.trailT += dt;
-    if (this.trailT < 0.045) return;
+    if (this.trailT < 0.05) return;
     this.trailT = 0;
-    this.battle.fx.afterimage((c, col) => this.paint(c, col), this.char.color, 0.22);
+    this.battle.fx.afterimage((c, col) => this.paint(c, col), this.char.color, 0.18);
   }
 
   /** 把自己畫成單色剪影（殘影、虛影、瞬移用） */
@@ -665,5 +676,5 @@ export class Fighter {
 
 export const POSE_LIST = [
   'idle', 'run', 'jump', 'fall', 'land', 'crouch', 'guard', 'dash',
-  'light1', 'light2', 'light3', 'heavy', 'cast', 'uppercut', 'dive', 'ult', 'hurt', 'ko',
+  'light1', 'light2', 'light3', 'heavy', 'cast', 'uppercut', 'dive', 'ult', 'hurt', 'ko', 'charge',
 ];

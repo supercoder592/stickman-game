@@ -33,12 +33,6 @@ export const BASIC = {
   },
 };
 
-/** 武器的攻擊距離倍率 —— 剪影看起來打得到，判定就要真的打得到 */
-export const WEAPON_REACH = {
-  gauntlet: 0.88, claws: 0.9, twin: 1.0, blade: 1.12, staff: 1.06,
-  orbstaff: 1.04, hammer: 1.16, spear: 1.38, shield: 0.95,
-};
-
 export const MAX_METER = 100;
 
 /** 受擊者被打飛的距離會被體重吃掉一部分 */

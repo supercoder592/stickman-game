@@ -236,7 +236,7 @@ function log(msg) {
 }
 
 server.listen(PORT, () => {
-  log(`NEON CLASH 中繼伺服器啟動`);
+  log(`STEEL CLASH 中繼伺服器啟動`);
   log(`遊戲：http://localhost:${PORT}/`);
   log(`連線：同一台伺服器的 WebSocket，玩家端「中繼位址」留空即可`);
 });

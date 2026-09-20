@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>NEON CLASH 霓虹亂鬥</title>
+<title>STEEL CLASH 鋼鐵亂鬥</title>
 <!-- 內嵌的霓虹六角形圖示，免得瀏覽器去要一個不存在的 favicon -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2305060f'/%3E%3Cpath d='M16 4l10 6v12l-10 6-10-6V10z' fill='none' stroke='%237ef1ff' stroke-width='3'/%3E%3Cpath d='M16 11l5 3v6l-5 3-5-3v-6z' fill='%23ff5ec4'/%3E%3C/svg%3E">
 <meta name="description" content="瀏覽器上的近戰街機格鬥：十位霓虹鬥士、單機／雙人同機／房號連線對戰。">
@@ -60,18 +60,18 @@
 <div id="stage"><canvas id="game" width="1280" height="720"></canvas></div>
 <div id="veil"></div>
 <div id="boot">
-  <h1>NEON CLASH</h1>
+  <h1>STEEL CLASH</h1>
   <p>載入中…</p>
 </div>
 <script type="module">
   // 模組載入失敗時把原因寫在畫面上 —— 手機瀏覽器沒有 console 可看。
   const boot = document.getElementById('boot');
   const fail = (msg) => {
-    boot.innerHTML = '<h1>NEON CLASH</h1>' +
+    boot.innerHTML = '<h1>STEEL CLASH</h1>' +
       '<p>啟動失敗：' + msg + '</p>' +
       '<p>用 <code>file://</code> 直接開啟時瀏覽器會擋下模組，<br>' +
       '請改用 <code>npx serve</code>／<code>python3 -m http.server</code>，' +
-      '或開啟打包好的 <code>dist/neon-clash.html</code>。</p>';
+      '或開啟打包好的 <code>dist/steel-clash.html</code>。</p>';
   };
   window.addEventListener('error', (e) => { if (boot.isConnected) fail(e.message); });
   try {

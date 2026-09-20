@@ -209,6 +209,25 @@ export class Zone extends Entity {
   draw(ctx) {
     const k = this.t / this.life;
     const a = clamp(Math.min(this.t * 4, 1) * (1 - Math.max(0, k - 0.8) * 5), 0, 1);
+    if (this.style === 'fire') {
+      // 地上的火海：一排翻滾的火舌
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 14; i++) {
+        const fx2 = this.x - this.radius + (i / 13) * this.radius * 2;
+        const h = 40 + Math.sin(this.t * 9 + i * 1.7) * 26 + Math.sin(this.t * 3 + i) * 14;
+        const g = ctx.createLinearGradient(fx2, this.y + 30, fx2, this.y + 30 - h);
+        g.addColorStop(0, `rgba(255,220,150,${0.5 * a})`);
+        g.addColorStop(0.4, `rgba(255,140,40,${0.42 * a})`);
+        g.addColorStop(1, 'rgba(180,40,10,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.ellipse(fx2, this.y + 30 - h / 2, 22, h / 2, 0, 0, TAU);
+        ctx.fill();
+      }
+      ctx.restore();
+      return;
+    }
     ctx.save();
     ctx.globalAlpha = a;
     for (let i = 0; i < 3; i++) {
@@ -351,6 +370,121 @@ export class Wave extends Entity {
   }
 }
 
+// ------------------------------------------------------------------ 鉤索
+/** 飛出去的抓鉤：帶著一條鎖鏈，勾到人就把人拉回來，沒勾到就收回 */
+export class Hook extends Entity {
+  constructor(o) {
+    super({ layer: 'front', life: 1.2, state: 'out', ...o });
+    this.x = o.x; this.y = o.y;
+    this.startX = o.x; this.startY = o.y;
+  }
+  update(dt, battle) {
+    this.t += dt;
+    const user = this.user;
+    if (!user || user.dead) { this.dead = true; return; }
+    const hand = { x: user.x + user.facing * 30, y: user.y - 62 };
+
+    if (this.state === 'out') {
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+      const foe = foeOf(user);
+      if (foe && !foe.dead) {
+        const b = foe.bodyRect();
+        if (this.x > b.x - 12 && this.x < b.x + b.w + 12 && this.y > b.y - 12 && this.y < b.y + b.h + 12) {
+          this.state = 'caught';
+          this.caught = foe;
+          user.dealDamage(foe, { dmg: this.dmg, kbx: 0, kby: 0, hitstun: 0.5, shock: this.stun || 0 });
+          foe.marked = 3;                       // 鉤索的被動：被標記的人吃更多傷害
+          battle.fx.spark(this.x, this.y, '#d8ffe8', 1.2, WORLD.ground);
+          battle.audio.play('hit');
+          return;
+        }
+      }
+      const dist2 = Math.hypot(this.x - this.startX, this.y - this.startY);
+      if (dist2 > this.range || this.x < WORLD.left || this.x > WORLD.right) {
+        if (this.mode === 'zip') {
+          // 沒勾到人就勾牆：把自己拉過去
+          this.state = 'zip';
+          this.anchor = { x: this.x, y: this.y };
+        } else {
+          this.state = 'back';
+        }
+      }
+    } else if (this.state === 'caught') {
+      // 把對手拉到面前
+      const foe = this.caught;
+      if (!foe || foe.dead) { this.dead = true; return; }
+      const target = user.x + user.facing * 62;
+      foe.x += (target - foe.x) * Math.min(1, dt * 12);
+      foe.vy = Math.min(foe.vy, -60);
+      foe.hitstun = Math.max(foe.hitstun, 0.18);
+      this.x = foe.x; this.y = foe.y - 60;
+      if (Math.abs(foe.x - target) < 26 || this.t > 0.8) {
+        user.dealDamage(foe, { dmg: this.dmg * 0.6, kbx: 60, kby: -180, hitstun: 0.35, big: true });
+        battle.fx.spark(foe.x, foe.y - 50, this.color, 1.4, WORLD.ground);
+        battle.fx.stop(0.06);
+        this.dead = true;
+      }
+    } else if (this.state === 'zip') {
+      // 把自己拉向鉤點
+      const a = this.anchor;
+      user.x += (a.x - user.x) * Math.min(1, dt * 9);
+      user.y += (a.y + 40 - user.y) * Math.min(1, dt * 7);
+      user.vy = 0;
+      user.lock = Math.max(user.lock, 0.1);
+      if (this.t % 0.05 < dt) battle.fx.afterimage((c, col) => user.paint(c, col), this.color, 0.2);
+      const foe = foeOf(user);
+      if (foe && !foe.dead && overlaps(user.bodyRect(), foe.bodyRect())) {
+        user.dealDamage(foe, { dmg: this.dmg, kbx: this.kbx, kby: this.kby, hitstun: 0.35, big: true, kbDir: user.facing });
+        battle.fx.spark(foe.x, foe.y - 50, this.color, 1.5, WORLD.ground);
+        battle.fx.stop(0.07);
+        this.dead = true;
+        return;
+      }
+      if (Math.abs(a.x - user.x) < 40 || this.t > 0.9) {
+        this.dead = true;
+        user.lock = 0;
+      }
+    } else {
+      // 收回
+      this.x += (hand.x - this.x) * Math.min(1, dt * 14);
+      this.y += (hand.y - this.y) * Math.min(1, dt * 14);
+      if (Math.hypot(hand.x - this.x, hand.y - this.y) < 18) this.dead = true;
+    }
+  }
+  draw(ctx) {
+    const user = this.user;
+    if (!user) return;
+    const hand = { x: user.x + user.facing * 30, y: user.y - 62 };
+    // 鎖鏈
+    ctx.save();
+    ctx.strokeStyle = '#8b939f';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(hand.x, hand.y);
+    const midX = (hand.x + this.x) / 2;
+    const midY = (hand.y + this.y) / 2 + 10;
+    ctx.quadraticCurveTo(midX, midY, this.x, this.y);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // 鉤頭
+    const a = Math.atan2(this.vy, this.vx);
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.state === 'back' ? a + Math.PI : a);
+    ctx.fillStyle = '#b8c0cc';
+    ctx.beginPath();
+    ctx.moveTo(14, 0); ctx.lineTo(-6, -7); ctx.lineTo(-2, 0); ctx.lineTo(-6, 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
 // ------------------------------------------------------------------ 招式派送
 export function runSkill(kind, user, params, info = {}) {
   const battle = user.battle;
@@ -364,9 +498,12 @@ export function runSkill(kind, user, params, info = {}) {
 
   // 必殺一律有開場演出
   if (isUlt) {
-    fx.flashScreen(0.35, c);
-    fx.rays(user.x, user.y - 60, c, 16, 160, 0.4);
-    fx.ring(user.x, user.y - 50, ac, { r0: 20, r1: 220, life: 0.5, width: 6 });
+    // 必殺起手：腳下塵土炸開、碎石彈起、畫面壓一下
+    fx.flashScreen(0.22, '#ffe6c0');
+    fx.dustRing(user.x, WORLD.ground, { r: 220, life: 0.7 });
+    fx.debris(user.x, WORLD.ground, { count: 16, color: '#4a443c', speed: 520, groundY: WORLD.ground });
+    fx.smoke(user.x, WORLD.ground - 20, { count: 8, color: '#6f675e', r: 24, rise: 110, life: 1.3 });
+    fx.quake(12, 0.5);
     user.setPose('ult', 0.5);
     user.invuln = Math.max(user.invuln, 0.35);
   } else {
@@ -960,6 +1097,411 @@ export function runSkill(kind, user, params, info = {}) {
           }
         },
       }));
+      break;
+    }
+
+    // ---------------------------------------------------------- 鉤索擒拿
+    case 'grapple': {
+      user.lock = 0.3;
+      user.setPose('cast', 0.3);
+      battle.spawn(new Hook({
+        user, color: c, mode: 'pull',
+        x: user.x + face * 32, y: user.y - 62,
+        vx: face * params.speed, vy: 0,
+        range: params.range, dmg: params.dmg, stun: params.stun,
+      }));
+      fx.sparks(user.x + face * 34, user.y - 62, { count: 6, color: '#cfe8ff', speed: 200, dir: face > 0 ? 0 : Math.PI, spread: 1 });
+      break;
+    }
+
+    // ---------------------------------------------------------- 飛索突進
+    case 'zipline': {
+      user.lock = 0.9;
+      user.setPose('dash', 0.9);
+      user.invuln = Math.max(user.invuln, 0.2);
+      battle.spawn(new Hook({
+        user, color: c, mode: 'zip',
+        x: user.x + face * 32, y: user.y - 70,
+        vx: face * params.speed, vy: -120,
+        range: params.range, dmg: params.dmg, kbx: params.kbx, kby: params.kby,
+      }));
+      break;
+    }
+
+    // ---------------------------------------------------------- 持續切割（鏈鋸）
+    case 'sustained': {
+      const dur = params.dur;
+      user.lock = dur + 0.15;
+      user.setPose(params.spin ? 'light3' : 'heavy', dur + 0.2);
+      if (params.spin) user.armor = Math.max(user.armor, dur);
+      battle.spawn(new Routine({
+        life: dur,
+        step: (dt, self) => {
+          // 鋸的時候可以緩慢推進
+          if (params.move) user.vx = face * params.move;
+          self.tick = (self.tick || 0) - dt;
+          const f2 = foeOf(user);
+          const cx = params.spin ? user.x : user.x + face * params.reach * 0.6;
+          const cy = user.y - 56;
+          if (params.pull && f2 && !f2.dead) {
+            const d = Math.abs(f2.x - cx);
+            if (d < params.reach * 1.6) f2.vx += sign(cx - f2.x) * params.pull * dt;
+          }
+          if (self.tick <= 0) {
+            self.tick = params.tick;
+            const hit = hitCircle(user, cx, cy, params.reach, {
+              dmg: params.dmg, kbx: params.spin ? 120 : 40, kby: -40,
+              hitstun: 0.1, bleed: params.bleed, kbDir: face,
+            });
+            if (hit) {
+              const f3 = foeOf(user);
+              fx.sparks(f3.x, f3.y - 52, { count: 8, color: '#ffd9a0', speed: 420, dir: -Math.PI / 2 + face * 0.6, spread: 1.4, groundY: WORLD.ground });
+              fx.stop(0.02);
+            }
+          }
+          // 鋸齒噴出的火花與煙
+          if (Math.random() < 0.55) {
+            fx.sparks(cx + rand(-20, 20), cy + rand(-16, 16), {
+              count: 2, color: '#ffe9c0', speed: 360, dir: face > 0 ? -0.6 : Math.PI + 0.6, spread: 1.2, groundY: WORLD.ground,
+            });
+          }
+          if (Math.random() < 0.12) fx.smoke(cx, cy, { count: 1, color: '#6d6a66', r: 10, rise: 60, life: 0.6 });
+          if (params.spin && self.t % 0.06 < dt) {
+            fx.afterimage((cc, col) => user.paint(cc, col), c, 0.2);
+          }
+        },
+        finish: () => { user.vx *= 0.3; },
+      }));
+      battle.audio.play('skill');
+      break;
+    }
+
+    // ---------------------------------------------------------- 鎖鏈鐮迴旋
+    case 'chainSwing': {
+      const turns = params.turns || 2;
+      const dur = 0.22 * turns + 0.2;
+      user.lock = dur;
+      user.armor = Math.max(user.armor, dur * 0.7);
+      user.setPose('light3', dur);
+      const hitIds = new Set();
+      battle.spawn(new Routine({
+        life: dur,
+        step: (dt, self) => {
+          const a = self.t / dur * Math.PI * 2 * turns;
+          const px = user.x + Math.cos(a) * params.radius;
+          const py = user.y - 60 + Math.sin(a) * params.radius * 0.72;
+          self.pts = self.pts || [];
+          self.pts.push({ x: px, y: py });
+          if (self.pts.length > 12) self.pts.shift();
+          const f2 = foeOf(user);
+          if (f2 && !f2.dead) {
+            const b = f2.bodyRect();
+            const inside = px > b.x - 14 && px < b.x + b.w + 14 && py > b.y - 14 && py < b.y + b.h + 14;
+            const key = Math.floor(self.t / (dur / turns));
+            if (inside && !hitIds.has(key)) {
+              hitIds.add(key);
+              user.dealDamage(f2, {
+                dmg: params.dmg, kbx: params.kbx, kby: params.kby,
+                hitstun: 0.3, big: true, kbDir: sign(f2.x - user.x) || face,
+              });
+              fx.spark(px, py, c, 1.5, WORLD.ground);
+              fx.stop(0.05);
+              fx.quake(7, 0.2);
+            }
+          }
+          if (self.pts.length > 3 && self.t % 0.05 < dt) {
+            fx.weaponTrail(self.pts.slice(), c, 0.22, 20);
+          }
+        },
+      }));
+      battle.audio.play('swing');
+      break;
+    }
+
+    // ---------------------------------------------------------- 蓄力重擊
+    case 'charge': {
+      const ct = params.charge;
+      user.lock = ct + 0.45;
+      user.armor = Math.max(user.armor, params.armor || ct);
+      user.setPose('charge', ct);
+      battle.spawn(new Routine({
+        life: ct,
+        step: (dt, self) => {
+          const k = self.t / ct;
+          if (Math.random() < 0.5) {
+            fx.particle({
+              x: user.x + rand(-40, 40), y: user.y - rand(10, 90),
+              vx: rand(-20, 20), vy: -rand(40, 120), g: -40, life: 0.4,
+              size: rand(2, 4), color: ac, shape: 'dot', blend: 'add',
+            });
+          }
+          if (self.t % 0.12 < dt) fx.dustRing(user.x, WORLD.ground, { r: 60 + k * 60, life: 0.4 });
+        },
+        finish: () => {
+          user.setPose('heavy', 0.4);
+          const cx = user.x + face * 70;
+          const cy = user.y - 50;
+          const landed = hitCircle(user, cx, cy, params.radius, {
+            dmg: params.dmg, kbx: params.kbx, kby: params.kby,
+            hitstun: 0.55, big: true, kbDir: face,
+          });
+          fx.weaponTrail([
+            { x: user.x + face * 20, y: user.y - 150 },
+            { x: user.x + face * 90, y: user.y - 110 },
+            { x: user.x + face * 120, y: user.y - 40 },
+            { x: user.x + face * 96, y: user.y - 6 },
+          ], ac, 0.3, 30);
+          fx.dustRing(user.x + face * 60, WORLD.ground, { r: params.radius * 1.4, life: 0.6 });
+          fx.debris(user.x + face * 60, WORLD.ground, { count: 14, color: '#4a4640', speed: 460, groundY: WORLD.ground });
+          fx.smoke(user.x + face * 60, WORLD.ground - 10, { count: 6, color: '#7a736a', r: 20, rise: 70, life: 1.2 });
+          fx.quake(landed ? 18 : 12, 0.4);
+          fx.stop(landed ? 0.12 : 0.05);
+          battle.audio.play('slam');
+          if (params.wave) {
+            battle.spawn(new Wave({
+              user, color: ac, x: user.x + face * 90, dir: face, speed: 700, life: 0.8,
+              hit: { dmg: params.dmg * 0.5, kbx: 320, kby: -300, hitstun: 0.3 },
+            }));
+          }
+        },
+      }));
+      break;
+    }
+
+    // ---------------------------------------------------------- 橫掃
+    case 'sweep': {
+      user.lock = 0.42;
+      user.setPose('light3', 0.45);
+      user.armor = Math.max(user.armor, 0.2);
+      const cx = user.x + face * 40, cy = user.y - 56;
+      const landed = hitCircle(user, cx, cy, params.radius, {
+        dmg: params.dmg, kbx: params.kbx, kby: params.kby, hitstun: 0.45, big: true, kbDir: face,
+      });
+      const arcPts = [];
+      for (let i = 0; i <= 10; i++) {
+        const a = -params.arc / 2 + (params.arc * i) / 10;
+        arcPts.push({
+          x: cx + Math.cos(a) * params.radius * face,
+          y: cy + Math.sin(a) * params.radius * 0.6,
+        });
+      }
+      fx.weaponTrail(arcPts, ac, 0.28, 26);
+      fx.dustRing(user.x + face * 50, WORLD.ground, { r: params.radius, life: 0.5 });
+      fx.quake(landed ? 10 : 5, 0.25);
+      if (landed) fx.stop(0.08);
+      battle.audio.play('swing');
+      break;
+    }
+
+    // ---------------------------------------------------------- 噴火
+    case 'cone': {
+      const dur = params.dur;
+      user.lock = dur + 0.1;
+      user.setPose('cast', dur + 0.2);
+      battle.spawn(new Routine({
+        life: dur,
+        step: (dt, self) => {
+          self.tick = (self.tick || 0) - dt;
+          const ox = user.x + face * 34, oy = user.y - 58;
+          // 火舌
+          for (let i = 0; i < 3; i++) {
+            const a = (face > 0 ? 0 : Math.PI) + rand(-params.spread, params.spread);
+            const sp = rand(260, 620);
+            fx.particle({
+              x: ox, y: oy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40,
+              g: -260, drag: 0.94, life: rand(0.25, 0.5),
+              size: rand(8, 18), grow: 46,
+              color: i === 0 ? '#ffe9a8' : (i === 1 ? '#ff9a30' : '#ff5a18'),
+              shape: 'smoke', blend: 'add',
+            });
+          }
+          if (Math.random() < 0.3) {
+            fx.smoke(ox + face * rand(60, 200), oy - rand(0, 40), { count: 1, color: '#3b332c', r: 16, rise: 70, life: 1.1 });
+          }
+          if (self.tick <= 0) {
+            self.tick = params.tick;
+            const r = rect(
+              face > 0 ? ox : ox - params.range,
+              oy - params.range * params.spread,
+              params.range, params.range * params.spread * 2
+            );
+            hitRect(user, r, {
+              dmg: params.dmg, kbx: 60, kby: -30, hitstun: 0.08,
+              burn: params.burn, kbDir: face,
+            });
+          }
+        },
+      }));
+      battle.audio.play('skill');
+      break;
+    }
+
+    // ---------------------------------------------------------- 連續砸地
+    case 'quake': {
+      user.lock = params.count * params.interval + 0.4;
+      user.setPose('heavy', 0.6);
+      user.armor = Math.max(user.armor, params.count * params.interval);
+      battle.spawn(new Routine({
+        life: params.count * params.interval + 0.2,
+        step: (dt, self) => {
+          const idx = Math.floor(self.t / params.interval);
+          if (idx === self.lastIdx || idx >= params.count) return;
+          self.lastIdx = idx;
+          const x = clamp(user.x + face * params.step * (idx + 1), WORLD.left + 30, WORLD.right - 30);
+          hitCircle(user, x, WORLD.ground - 40, 80, {
+            dmg: params.dmg, kbx: 200, kby: params.kby, hitstun: 0.35, big: true, kbDir: face,
+          });
+          fx.dustRing(x, WORLD.ground, { r: 130, life: 0.55 });
+          fx.debris(x, WORLD.ground, { count: 12, color: '#4d4740', speed: 520, groundY: WORLD.ground });
+          fx.smoke(x, WORLD.ground - 20, { count: 4, color: '#7d766c', r: 22, rise: 90, life: 1.1 });
+          fx.effect({
+            life: 0.5, layer: 'back',
+            draw: (ctx2, k) => {
+              const a = 1 - k;
+              ctx2.save();
+              ctx2.strokeStyle = `rgba(20,16,12,${a})`;
+              ctx2.lineWidth = 3;
+              ctx2.beginPath();
+              ctx2.moveTo(x - 40, WORLD.ground);
+              ctx2.lineTo(x - 10, WORLD.ground - 6 - 30 * (1 - a));
+              ctx2.lineTo(x + 16, WORLD.ground);
+              ctx2.stroke();
+              ctx2.restore();
+            },
+          });
+          fx.quake(14, 0.3);
+          fx.stop(0.04);
+          battle.audio.play('slam');
+        },
+      }));
+      break;
+    }
+
+    // ---------------------------------------------------------- 裂地斬
+    case 'cleave': {
+      user.lock = 0.95;
+      user.setPose('charge', 0.35);
+      user.vy = -520;
+      user.onGround = false;
+      user.armor = Math.max(user.armor, 1.0);
+      battle.spawn(new Routine({
+        life: 0.42,
+        step: (dt, self) => {
+          if (self.t > 0.2) user.vy = Math.max(user.vy, 900);
+        },
+        finish: () => {
+          user.setPose('heavy', 0.4);
+          const gx = user.x + face * 40;
+          hitCircle(user, gx, WORLD.ground - 50, params.radius, {
+            dmg: params.dmg, kbx: params.kbx, kby: params.kby, hitstun: 0.6, big: true, kbDir: face,
+          });
+          for (let i = 0; i < params.waves; i++) {
+            const d = i % 2 === 0 ? 1 : -1;
+            battle.spawn(new Wave({
+              user, color: ac, x: gx + d * 40, dir: d, speed: 640 + i * 40, life: 0.9,
+              hit: { dmg: params.dmg * 0.35, kbx: 300, kby: -320, hitstun: 0.3 },
+            }));
+          }
+          fx.dustRing(gx, WORLD.ground, { r: params.radius * 1.6, life: 0.7 });
+          fx.debris(gx, WORLD.ground, { count: 26, color: '#4a443c', speed: 620, spread: 2.6, groundY: WORLD.ground });
+          fx.smoke(gx, WORLD.ground - 20, { count: 10, color: '#6f675e', r: 28, rise: 120, life: 1.5 });
+          fx.flashScreen(0.3, '#ffd9a0');
+          fx.quake(24, 0.6);
+          fx.stop(0.14);
+          battle.audio.play('boom');
+        },
+      }));
+      break;
+    }
+
+    // ---------------------------------------------------------- 全場貫穿衝刺
+    case 'lanceRush': {
+      const dur = 0.5;
+      user.lock = dur + 0.2;
+      user.invuln = Math.max(user.invuln, dur);
+      user.armor = Math.max(user.armor, dur);
+      user.setPose('dash', dur + 0.1);
+      const from = user.x;
+      const to = clamp(from + face * 900, WORLD.left + 40, WORLD.right - 40);
+      const hitIds = new Set();
+      battle.spawn(new Routine({
+        life: dur,
+        step: (dt, self) => {
+          const k = clamp(self.t / dur, 0, 1);
+          user.x = from + (to - from) * easeOut(k, 1.4);
+          user.vy = 0;
+          if (self.t % 0.03 < dt) fx.afterimage((cc, col) => user.paint(cc, col), c, 0.26);
+          const f2 = foeOf(user);
+          if (f2 && !f2.dead && !hitIds.has(f2.id) && overlaps(user.bodyRect().grow ? user.bodyRect() : user.bodyRect(), f2.bodyRect())) {
+            hitIds.add(f2.id);
+            user.dealDamage(f2, {
+              dmg: params.dmg, kbx: params.kbx, kby: params.kby,
+              hitstun: 0.6, big: true, kbDir: face,
+            });
+            fx.spark(f2.x, f2.y - 50, ac, 2.2, WORLD.ground);
+            fx.stop(0.12);
+            fx.quake(16, 0.4);
+          }
+        },
+        finish: () => { user.vx = face * 120; },
+      }));
+      fx.weaponTrail([
+        { x: from, y: user.y - 60 }, { x: (from + to) / 2, y: user.y - 60 }, { x: to, y: user.y - 60 },
+      ], ac, 0.35, 22);
+      break;
+    }
+
+    // ---------------------------------------------------------- 火海
+    case 'inferno': {
+      user.lock = 0.6;
+      const zx = user.x + face * 150;
+      battle.spawn(new Zone({
+        user, x: zx, y: WORLD.ground - 40, radius: params.radius, life: params.dur,
+        color: '#ff7a2a', tick: params.tick, style: 'fire',
+        hit: { dmg: params.dmg, kbx: 0, kby: 0, hitstun: 0, burn: params.burn },
+      }));
+      fx.fireBurst(zx, WORLD.ground - 40, { r: params.radius * 0.8, life: 0.8 });
+      fx.flashScreen(0.3, '#ff9a3c');
+      fx.quake(14, 0.5);
+      battle.audio.play('boom');
+      break;
+    }
+
+    // ---------------------------------------------------------- 收割
+    case 'reap': {
+      user.lock = 0.5;
+      const f2 = foe;
+      fx.afterimage((cc, col) => user.paint(cc, col), c, 0.3);
+      fx.smoke(user.x, user.y - 50, { count: 6, color: '#2a2438', r: 16, rise: 40, life: 0.6 });
+      if (f2 && !f2.dead) {
+        const behind = -f2.facing;
+        user.x = clamp(f2.x + behind * 66, WORLD.left + 30, WORLD.right - 30);
+        user.y = f2.y;
+        user.facing = sign(f2.x - user.x) || user.facing;
+        user.setPose('heavy', 0.5);
+        battle.spawn(new Routine({
+          life: 0.22,
+          finish: () => {
+            const t2 = foeOf(user);
+            if (!t2 || t2.dead) return;
+            user.dealDamage(t2, {
+              dmg: params.dmg * params.backstab, kbx: params.kbx, kby: params.kby,
+              hitstun: 0.7, big: true, kbDir: user.facing,
+            });
+            const cx = t2.x, cy = t2.y - 56;
+            fx.weaponTrail([
+              { x: cx - user.facing * 120, y: cy - 90 },
+              { x: cx, y: cy },
+              { x: cx + user.facing * 110, y: cy + 70 },
+            ], ac, 0.3, 30);
+            fx.spark(cx, cy, ac, 2.4, WORLD.ground);
+            fx.flashScreen(0.35, '#ffffff');
+            fx.stop(0.16);
+            fx.quake(18, 0.45);
+            battle.audio.play('hitHeavy');
+          },
+        }));
+      }
       break;
     }
 

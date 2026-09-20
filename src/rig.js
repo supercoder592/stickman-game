@@ -7,15 +7,15 @@
 // 角度定義：0 = 正下方，正值往前（+x）。dir(a) = (sin a, cos a)。
 
 const L = {
-  hipY: -54,      // 髖高
-  torso: 26,      // 髖 → 胸
-  neck: 38,       // 髖 → 頸
-  headY: -104,    // 頭心高度
-  thigh: 27,
-  shin: 27,
-  upper: 23,
-  fore: 23,
-  shoulderW: 9,
+  hipY: -62,      // 髖高（腿佔身高的一半左右，才像真人）
+  torso: 30,      // 髖 → 胸
+  neck: 43,       // 髖 → 頸
+  headY: -120,    // 頭心高度（脖子只露一小截）
+  thigh: 31,
+  shin: 31,
+  upper: 25,
+  fore: 24,
+  shoulderW: 11,
 };
 
 const dir = (a) => ({ x: Math.sin(a), y: Math.cos(a) });
@@ -46,7 +46,7 @@ function assemble(spec) {
   const neck = { x: hip.x + chestDir.x * L.neck, y: hip.y + chestDir.y * L.neck };
   const head = {
     x: neck.x + Math.sin(lean * 0.5 + headTilt) * 14,
-    y: neck.y - 14 + Math.abs(bob) * 0.2,
+    y: neck.y - 15 + Math.abs(bob) * 0.2,
   };
 
   const shF = { x: chest.x + L.shoulderW * 0.5, y: chest.y };
@@ -183,6 +183,15 @@ export function poseFor(state, k = 0, phase = 0) {
         armF: [-1.1, 0.4], armB: [-1.6, 0.5],
         legF: [1.5, 0.15], legB: [0.6, 0.9],
       });
+    case 'charge': {
+      // 蓄力：重心壓低、武器拉到身後，越蓄越緊
+      const p = Math.min(1, k * 1.4);
+      return assemble({
+        lean: -0.45 - p * 0.2, crouch: 6 + p * 6, bob: Math.sin(k * 40) * 0.8 * p,
+        armF: [-1.5 - p * 0.5, 0.5], armB: [-1.9 - p * 0.4, 0.6],
+        legF: [0.75, 0.9], legB: [-0.85, 1.0],
+      });
+    }
     case 'ult': {
       const p = Math.min(1, k * 3);
       return assemble({
@@ -208,10 +217,11 @@ export function poseFor(state, k = 0, phase = 0) {
     case 'idle':
     default: {
       const b = sin(phase * 0.9);
+      // 戰鬥預備架勢：前手把武器端在身前，後手收在腰側，重心微沉
       return assemble({
-        lean: 0.06, bob: b * 1.6,
-        armF: [0.55 + b * 0.08, 0.72], armB: [-0.42 - b * 0.08, 0.66],
-        legF: [0.22, 0.28], legB: [-0.24, 0.3],
+        lean: 0.12, bob: b * 1.4, crouch: 2,
+        armF: [0.88 + b * 0.05, 1.05], armB: [-0.55 - b * 0.05, 1.1],
+        legF: [0.3, 0.34], legB: [-0.34, 0.4],
       });
     }
   }

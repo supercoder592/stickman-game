@@ -60,7 +60,7 @@ export class Fx {
 
   // ---------------------------------------------------------------- 粒子
   particle(o) {
-    if (this.parts.length > 900) this.parts.shift();
+    if (this.parts.length > 1100) this.parts.shift();
     this.parts.push({
       x: o.x, y: o.y, vx: o.vx || 0, vy: o.vy || 0,
       g: o.g === undefined ? 900 : o.g,
@@ -69,6 +69,11 @@ export class Fx {
       size: o.size || 3, color: o.color || '#ffffff',
       shape: o.shape || 'dot', rot: o.rot || 0, spin: o.spin || 0,
       layer: o.layer || 'front',
+      blend: o.blend || 'add',          // add = 火花／火焰，normal = 煙塵／碎塊
+      grow: o.grow || 0,                // 每秒放大（煙）
+      fade: o.fade === undefined ? 1 : o.fade,
+      bounce: o.bounce || 0,            // 碰到地面彈一下
+      groundY: o.groundY,
     });
   }
 
@@ -88,18 +93,39 @@ export class Fx {
     }
   }
 
-  /** 命中火花：白芯 + 角色色碎片 */
-  spark(x, y, color, power = 1) {
-    this.burst(x, y, '#ffffff', { count: 5 + (power * 4) | 0, speed: 380 * power, size: 3, life: 0.22, g: 200 });
-    this.burst(x, y, color, { count: 8 + (power * 6) | 0, speed: 300 * power, size: 4, life: 0.45, shape: 'hex' });
+  /** 命中：金屬火花 + 白色衝擊閃 + 一小撮煙 */
+  spark(x, y, color, power = 1, groundY) {
+    this.sparks(x, y, {
+      count: Math.round(10 + power * 14), color: '#ffe0a8', speed: 460 * power,
+      dir: -Math.PI / 2, spread: Math.PI * 1.6, life: 0.45, groundY,
+    });
+    this.burst(x, y, color, { count: Math.round(4 + power * 4), speed: 240 * power, size: 3, life: 0.3 });
     this.effect({
-      life: 0.22, layer: 'front',
+      life: 0.16 + 0.06 * power, layer: 'front',
       draw: (ctx, k) => {
-        const r = 14 + 46 * power * easeOut(k);
-        glowFill(ctx, circlePath(x, y, r * 0.35), '#ffffff', (1 - k) * 0.7);
-        neonStroke(ctx, circlePath(x, y, r), color, 3 * (1 - k), 1.2);
+        const a = 1 - k;
+        const r = (16 + 40 * power) * easeOut(k, 2);
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, `rgba(255,255,255,${a})`);
+        g.addColorStop(0.4, withAlpha(color, a * 0.6));
+        g.addColorStop(1, withAlpha(color, 0));
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, TAU);
+        ctx.fill();
+        // 十字光芒
+        ctx.strokeStyle = `rgba(255,255,255,${a * 0.8})`;
+        ctx.lineWidth = 2 * a;
+        ctx.beginPath();
+        ctx.moveTo(x - r * 1.6, y); ctx.lineTo(x + r * 1.6, y);
+        ctx.moveTo(x, y - r * 1.1); ctx.lineTo(x, y + r * 1.1);
+        ctx.stroke();
+        ctx.restore();
       },
     });
+    if (power > 1.2) this.smoke(x, y, { count: 3, color: '#6b645c', r: 10, rise: 50, life: 0.7 });
   }
 
   /** 招式命中的放射線（漫畫集中線的霓虹版） */
@@ -191,6 +217,170 @@ export class Fx {
     this.effects.push({ t: 0, layer: 'front', ...e });
   }
 
+  // ---------------------------------------------------------------- 寫實特效
+  /** 煙塵：慢慢上升並擴散，不發光 */
+  smoke(x, y, opts = {}) {
+    const {
+      count = 8, color = '#9aa2ae', r = 14, rise = 40, life = 1.1, spread = 30, alpha = 1,
+    } = opts;
+    for (let i = 0; i < count; i++) {
+      this.particle({
+        x: x + rand(-spread, spread), y: y + rand(-spread * 0.4, spread * 0.4),
+        vx: rand(-30, 30), vy: -rise * rand(0.5, 1.2),
+        g: -12, drag: 0.97, life: life * rand(0.7, 1.4),
+        size: r * rand(0.6, 1.5), grow: r * 1.2, color,
+        shape: 'smoke', blend: 'normal', layer: 'back',
+      });
+    }
+  }
+
+  /** 火花：亮、快、帶拖尾，撞到地面會彈 */
+  sparks(x, y, opts = {}) {
+    const {
+      count = 18, color = '#ffd9a0', speed = 520, dir = -Math.PI / 2, spread = Math.PI,
+      life = 0.5, groundY,
+    } = opts;
+    for (let i = 0; i < count; i++) {
+      const a = dir + (Math.random() - 0.5) * spread;
+      const sp = speed * rand(0.3, 1);
+      this.particle({
+        x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        g: 1300, drag: 0.99, life: life * rand(0.5, 1.3),
+        size: rand(1.4, 3), color, shape: 'line', blend: 'add',
+        bounce: 0.4, groundY,
+      });
+    }
+  }
+
+  /** 碎塊：水泥、鐵屑，會旋轉並落地 */
+  debris(x, y, opts = {}) {
+    const {
+      count = 10, color = '#4a4640', speed = 420, dir = -Math.PI / 2, spread = 2.2,
+      size = 5, life = 1.6, groundY,
+    } = opts;
+    for (let i = 0; i < count; i++) {
+      const a = dir + (Math.random() - 0.5) * spread;
+      const sp = speed * rand(0.4, 1);
+      this.particle({
+        x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        g: 1500, drag: 0.995, life: life * rand(0.7, 1.3),
+        size: size * rand(0.5, 1.4), color, shape: 'chunk', blend: 'normal',
+        spin: rand(-14, 14), bounce: 0.35, groundY, layer: 'front',
+      });
+    }
+  }
+
+  /** 地面塵環：衝擊往外推開的一圈灰 */
+  dustRing(x, y, opts = {}) {
+    const { r = 120, life = 0.5, color = '#8d8578' } = opts;
+    this.effect({
+      life, layer: 'back',
+      draw: (ctx, k) => {
+        const rr = r * easeOut(k, 2);
+        const a = (1 - k) * 0.5;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(1, 0.26);
+        const g = ctx.createRadialGradient(0, 0, rr * 0.55, 0, 0, rr);
+        g.addColorStop(0, withAlpha(color, 0));
+        g.addColorStop(0.7, withAlpha(color, a));
+        g.addColorStop(1, withAlpha(color, 0));
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 0, rr, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      },
+    });
+  }
+
+  /** 火球／爆燃：亮核 + 翻滾的火舌 + 黑煙 */
+  fireBurst(x, y, opts = {}) {
+    const { r = 90, life = 0.55, count = 14 } = opts;
+    this.effect({
+      life, layer: 'front',
+      draw: (ctx, k) => {
+        const rr = r * easeOut(k, 1.8);
+        const a = 1 - k;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, rr);
+        g.addColorStop(0, `rgba(255,250,220,${a})`);
+        g.addColorStop(0.35, `rgba(255,170,60,${a * 0.85})`);
+        g.addColorStop(0.7, `rgba(220,80,30,${a * 0.5})`);
+        g.addColorStop(1, 'rgba(60,20,10,0)');
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, rr, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      },
+    });
+    for (let i = 0; i < count; i++) {
+      const a = rand(0, TAU);
+      this.particle({
+        x, y, vx: Math.cos(a) * rand(60, 260), vy: Math.sin(a) * rand(60, 200) - 60,
+        g: -120, drag: 0.93, life: rand(0.4, 0.9), size: rand(6, 16), grow: 30,
+        color: i % 3 === 0 ? '#ffd27a' : '#ff8a30', shape: 'smoke', blend: 'add',
+      });
+    }
+    this.smoke(x, y, { count: 6, color: '#3a3128', r: 18, rise: 60, life: 1.4 });
+  }
+
+  /** 電弧：從 a 點打到 b 點的鋸齒閃電 */
+  arc(ax, ay, bx, by, color = '#9fe8ff', life = 0.14) {
+    const rng = new Array(5).fill(0).map(() => rand(-1, 1));
+    this.effect({
+      life, layer: 'front',
+      draw: (ctx, k) => {
+        const a = 1 - k;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const [w, col] of [[6, withAlpha(color, 0.25 * a)], [2.4, withAlpha(color, 0.8 * a)], [1, `rgba(255,255,255,${a})`]]) {
+          ctx.strokeStyle = col;
+          ctx.lineWidth = w;
+          ctx.beginPath();
+          ctx.moveTo(ax, ay);
+          for (let i = 0; i < 5; i++) {
+            const t2 = (i + 1) / 6;
+            const nx = -(by - ay), ny = bx - ax;
+            const len = Math.hypot(nx, ny) || 1;
+            const off = rng[i] * 16 * Math.sin(t2 * Math.PI);
+            ctx.lineTo(ax + (bx - ax) * t2 + (nx / len) * off, ay + (by - ay) * t2 + (ny / len) * off);
+          }
+          ctx.lineTo(bx, by);
+          ctx.stroke();
+        }
+        ctx.restore();
+      },
+    });
+  }
+
+  /** 武器揮擊的殘影帶：沿著一串點畫出漸細的拖尾 */
+  weaponTrail(points, color, life = 0.2, width = 16) {
+    if (points.length < 3) return;
+    const pts = points.map((p) => ({ x: p.x, y: p.y }));
+    this.effect({
+      life, layer: 'front',
+      draw: (ctx, k) => {
+        const a = (1 - k) * 0.75;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        for (const [w, col] of [[width, withAlpha(color, a * 0.25)], [width * 0.45, withAlpha(color, a * 0.6)], [width * 0.14, `rgba(255,255,255,${a})`]]) {
+          ctx.strokeStyle = col;
+          ctx.lineWidth = w;
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+          ctx.stroke();
+        }
+        ctx.restore();
+      },
+    });
+  }
+
   // ---------------------------------------------------------------- 更新
   update(dt) {
     this.time += dt;
@@ -207,6 +397,15 @@ export class Fx {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.rot += p.spin * dt;
+      if (p.grow) p.size += p.grow * dt;
+      // 碎塊落地會彈起來再滾一下，比直接穿過地板真實得多
+      if (p.bounce && p.groundY !== undefined && p.y > p.groundY) {
+        p.y = p.groundY;
+        p.vy *= -p.bounce;
+        p.vx *= 0.6;
+        p.spin *= 0.5;
+        if (Math.abs(p.vy) < 40) { p.vy = 0; p.g = 0; p.vx *= 0.3; }
+      }
     }
     for (let i = this.effects.length - 1; i >= 0; i--) {
       const e = this.effects[i];
@@ -226,10 +425,15 @@ export class Fx {
 
   // ---------------------------------------------------------------- 繪製
   drawParticles(ctx, layer) {
+    this.drawParticlePass(ctx, layer, 'normal');
+    this.drawParticlePass(ctx, layer, 'add');
+  }
+
+  drawParticlePass(ctx, layer, blend) {
     ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalCompositeOperation = blend === 'add' ? 'lighter' : 'source-over';
     for (const p of this.parts) {
-      if (p.layer !== layer) continue;
+      if (p.layer !== layer || p.blend !== blend) continue;
       const k = p.t / p.life;
       const a = 1 - k;
       const s = p.size * (p.shape === 'dot' ? 1 - k * 0.4 : 1);
@@ -243,6 +447,30 @@ export class Fx {
           { x: p.x + Math.cos(p.rot + 2.4) * s, y: p.y + Math.sin(p.rot + 2.4) * s },
           { x: p.x + Math.cos(p.rot - 2.4) * s, y: p.y + Math.sin(p.rot - 2.4) * s },
         ]));
+      } else if (p.shape === 'smoke') {
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, s);
+        g.addColorStop(0, withAlpha(p.color, a * 0.55));
+        g.addColorStop(0.6, withAlpha(p.color, a * 0.22));
+        g.addColorStop(1, withAlpha(p.color, 0));
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, s, 0, TAU);
+        ctx.fill();
+      } else if (p.shape === 'chunk') {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.moveTo(-s, -s * 0.7);
+        ctx.lineTo(s * 0.9, -s);
+        ctx.lineTo(s, s * 0.6);
+        ctx.lineTo(-s * 0.7, s);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.fillRect(-s * 0.9, -s * 0.7, s * 1.2, s * 0.35);
+        ctx.restore();
       } else if (p.shape === 'line') {
         ctx.strokeStyle = p.color;
         ctx.lineWidth = s * 0.6;

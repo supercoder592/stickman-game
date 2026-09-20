@@ -5,7 +5,9 @@
 
 import { Fighter, BODY } from './fighter.js';
 import { Fx } from './fx.js';
-import { WORLD, drawSky, drawGround, drawPlatform, drawFighter } from './render.js';
+import {
+  WORLD, drawSky, drawGround, drawPlatform, drawFighter, drawRain, drawFog, drawForeground, drawGrade,
+} from './render.js';
 import { clamp } from './util.js';
 import { MAX_METER } from './combat.js';
 import { runSkill } from './skills.js';
@@ -92,7 +94,7 @@ export class Battle {
       f.facing = i === 0 ? 1 : -1;
       f.attack = null;
       f.hitstun = 0; f.lock = 0; f.freeze = 0; f.shockTime = 0;
-      f.burn = 0; f.poison = 0; f.slow = 0; f.slowMul = 1;
+      f.burn = 0; f.poison = 0; f.bleed = 0; f.marked = 0; f.slow = 0; f.slowMul = 1;
       f.dr = 0; f.drTime = 0; f.armor = 0; f.invuln = 0;
       f.cds = [0, 0];
       f.comboCount = 0;
@@ -318,41 +320,86 @@ export class Battle {
     const shake = this.fx.shakeOffset();
     const cam = this.camera();
 
-    drawSky(ctx, this.time, this.fighters[0].char.color, cam.x);
-
     ctx.save();
     ctx.translate(shake.x, shake.y);
     ctx.scale(cam.zoom, cam.zoom);
     ctx.translate(-cam.x, -cam.y);
 
+    drawSky(ctx, this.time, this.fighters[0].char.color, cam.x);
     drawGround(ctx, this.time);
     for (const p of this.platforms) drawPlatform(ctx, p, this.time);
 
+    // 濕地板上的倒影（畫在角色之前，才會被角色蓋住下緣）
+    for (const f of this.fighters) drawFighter(ctx, f, { reflection: true, shadow: false, onlyReflection: true });
+
+    drawFog(ctx, this.time, cam.x);
     this.fx.draw(ctx, 'back');
     for (const e of this.entities) if (e.layer === 'back') e.draw(ctx, this);
 
-    // 血量低的人身上會閃紅光，遠遠就看得出誰快倒了
     for (const f of this.fighters) {
-      if (!f.dead && f.hp / f.maxHp < 0.25) {
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = 0.25 + 0.15 * Math.sin(this.time * 8);
-        ctx.fillStyle = '#ff2d55';
-        ctx.beginPath();
-        ctx.ellipse(f.x, f.y - 50, 44, 66, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
+      // 快倒的人身上冒煙，遠遠就看得出戰況
+      if (!f.dead && f.hp / f.maxHp < 0.3 && Math.random() < 0.16) {
+        this.fx.smoke(f.x + (Math.random() - 0.5) * 20, f.y - 70, {
+          count: 1, color: '#6a635c', r: 9, rise: 50, life: 0.9,
+        });
       }
+      this.drawWeaponTrail(ctx, f);
       drawFighter(ctx, f);
     }
 
     for (const e of this.entities) if (e.layer !== 'back') e.draw(ctx, this);
     this.fx.draw(ctx, 'front');
+    drawRain(ctx, this.time, cam.x, 0.85);
+    drawForeground(ctx, cam.x);
     ctx.restore();
 
-    this.fx.drawFlash(ctx, WORLD.w, WORLD.h);
+    this.fx.drawFlash(ctx, WORLD.view, WORLD.h);
+    drawGrade(ctx, WORLD.view, WORLD.h, { grain: 0.045, vignette: 0.5 });
+  }
+
+  /** 武器尖端的殘影：出招時才留，收招就散掉 */
+  drawWeaponTrail(ctx, f) {
+    const local = f._tipLocal;
+    const scale = (f.char.build.scale || 1) * 1.12;
+    if (local) {
+      const pt = {
+        x: f.x + f.facing * scale * local.x,
+        y: f.y + scale * local.y,
+      };
+      f.tipTrail = f.tipTrail || [];
+      f.tipTrail.push(pt);
+      if (f.tipTrail.length > 6) f.tipTrail.shift();
+    }
+    const swinging = !!f.attack;
+    if (!swinging) {
+      if (f.tipTrail && f.tipTrail.length) f.tipTrail.shift();
+      return;
+    }
+    const pts = f.tipTrail;
+    if (!pts || pts.length < 4) return;
+    // 移動距離太小就不畫，免得站著也拖一條
+    const span = Math.hypot(pts[pts.length - 1].x - pts[0].x, pts[pts.length - 1].y - pts[0].y);
+    if (span < 60 || span > 420) return;   // 太短沒必要、太長是瞬移
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const col = f.char.accent;
+    for (const [w, a] of [[13, 0.07], [6, 0.13], [2, 0.32]]) {
+      ctx.strokeStyle = a === 0.32 ? `rgba(255,248,230,${a})` : withAlphaLocal(col, a);
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 }
 
 const EMPTY = { x: 0, up: false, down: false, edges: 0 };
+const withAlphaLocal = (hex, a) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+};
 const lerpNum = (a, b, t) => a + (b - a) * t;

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 把整個遊戲打包成一個 HTML 檔：dist/neon-clash.html
+// 把整個遊戲打包成一個 HTML 檔：dist/steel-clash.html
 //
 //   node tools/build.js
 //
@@ -14,7 +14,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const SRC = path.join(ROOT, 'src');
 const OUT_DIR = path.join(ROOT, 'dist');
-const OUT = path.join(OUT_DIR, 'neon-clash.html');
+const OUT = path.join(OUT_DIR, 'steel-clash.html');
 
 const files = fs.readdirSync(SRC).filter((f) => f.endsWith('.js')).sort();
 const sources = {};
@@ -64,7 +64,7 @@ const loader = `<script type="module">
     await mod.boot(document.getElementById('game'));
     boot.remove();
   } catch (err) {
-    boot.innerHTML = '<h1>NEON CLASH</h1><p>啟動失敗：' + (err && err.message ? err.message : err) + '</p>';
+    boot.innerHTML = '<h1>STEEL CLASH</h1><p>啟動失敗：' + (err && err.message ? err.message : err) + '</p>';
   }
 </script>`;
 
@@ -79,5 +79,5 @@ const out = html.slice(0, start) + loader + html.slice(end);
 fs.mkdirSync(OUT_DIR, { recursive: true });
 fs.writeFileSync(OUT, out);
 const kb = (Buffer.byteLength(out) / 1024).toFixed(0);
-console.log(`打包完成：dist/neon-clash.html（${kb} KB，${order.length} 支模組）`);
+console.log(`打包完成：dist/steel-clash.html（${kb} KB，${order.length} 支模組）`);
 console.log('這個檔案可以直接用瀏覽器開啟，不需要伺服器（連線對戰仍需要中繼伺服器）。');

@@ -5,7 +5,7 @@
 
 import { ROSTER, IDS, getChar, statRatio, randomId } from './characters.js';
 import { drawArena, drawPortrait, WORLD } from './render.js';
-import { panel, text, measure, neonStroke, glowFill, circlePath, ngonPath, polyPath } from './gfx.js';
+import { panel, stencil, text, measure, neonStroke, glowFill, circlePath, ngonPath, polyPath } from './gfx.js';
 import { menuNav, isEdge, anyEdge, drainTyped } from './input.js';
 import { clamp, withAlpha, lerp } from './util.js';
 import { Net } from './net.js';
@@ -78,24 +78,28 @@ export class TitleScreen {
     const a = ROSTER[Math.floor(this.t / 3) % ROSTER.length];
     const b = ROSTER[(Math.floor(this.t / 3) + 5) % ROSTER.length];
     ctx.save();
-    ctx.globalAlpha = 0.5;
-    drawPortrait(ctx, a, 250, 600, 1.5, this.t, 'idle');
-    ctx.translate(1030, 0);
+    ctx.globalAlpha = 0.42;
+    drawPortrait(ctx, a, 186, 636, 1.28, this.t, 'idle');
+    ctx.translate(1094, 0);
     ctx.scale(-1, 1);
-    drawPortrait(ctx, b, 0, 600, 1.5, this.t + 1, 'idle');
+    drawPortrait(ctx, b, 0, 636, 1.28, this.t + 1, 'idle');
     ctx.restore();
 
     // 標題
     const cx = VIEW / 2;
     const bob = Math.sin(this.t * 1.6) * 4;
-    text(ctx, 'NEON CLASH', cx, 168 + bob, {
-      size: 84, color: '#7ef1ff', align: 'center', weight: 900, letter: 10, glow: 1.5,
+    // 刻在鋼板上的標題：先一道暗影、再一道受光的亮邊
+    text(ctx, 'STEEL CLASH', cx, 170 + bob, {
+      size: 84, color: '#0a0c11', align: 'center', weight: 900, letter: 10, shadow: null,
     });
-    text(ctx, '霓　虹　亂　鬥', cx, 216 + bob, {
-      size: 26, color: '#ff5ec4', align: 'center', weight: 700, letter: 8, glow: 1,
+    text(ctx, 'STEEL CLASH', cx, 168 + bob, {
+      size: 84, color: '#c8d2e4', align: 'center', weight: 900, letter: 10, shadow: null,
+    });
+    text(ctx, '鋼　鐵　亂　鬥', cx, 216 + bob, {
+      size: 26, color: '#c1553a', align: 'center', weight: 700, letter: 8,
     });
     text(ctx, '十位鬥士・近戰街機・單機或連線', cx, 248 + bob, {
-      size: 15, color: '#9fb4ff', align: 'center',
+      size: 15, color: '#8b96b4', align: 'center', letter: 1,
     });
 
     if (this.showHelp) { this.drawHelp(ctx); this.taps.commit(); return; }
@@ -105,15 +109,15 @@ export class TitleScreen {
       const w = 340, h = 54;
       const x = cx - w / 2, y = 300 + i * 66;
       const on = i === this.index;
-      panel(ctx, x, y, w, h, on ? '#7ef1ff' : '#39405e', { glow: on ? 1 : 0 });
+      panel(ctx, x, y, w, h, on ? '#c9541f' : '#4a5168', { glow: on ? 1 : 0 });
       if (on) {
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = 0.12 + 0.06 * Math.sin(this.t * 6);
-        ctx.fillStyle = '#7ef1ff';
+        ctx.globalAlpha = 0.09 + 0.04 * Math.sin(this.t * 6);
+        ctx.fillStyle = '#ffb27a';
         ctx.fillRect(x, y, w, h);
         ctx.restore();
-        glowFill(ctx, ngonPath(x + 26, y + h / 2, 7, 6, this.t * 2), '#ff5ec4', 1);
+        glowFill(ctx, ngonPath(x + 26, y + h / 2, 6, 3, this.t * 1.2), '#ff9a4d', 0.9);
       }
       text(ctx, item.label, x + 52, y + 35, { size: 24, color: on ? '#ffffff' : '#aeb7d8' });
       text(ctx, item.sub, x + w - 16, y + 34, { size: 13, color: '#7b86ad', align: 'right' });
@@ -140,8 +144,8 @@ export class TitleScreen {
 
   drawHelp(ctx) {
     const w = 900, h = 440, x = (VIEW - w) / 2, y = 180;
-    panel(ctx, x, y, w, h, '#7ef1ff');
-    text(ctx, '操作說明', x + 40, y + 52, { size: 30, color: '#7ef1ff' });
+    panel(ctx, x, y, w, h, '#8f9bb5');
+    text(ctx, '操作說明', x + 40, y + 52, { size: 30, color: '#e2e8f4' });
     const rows = [
       ['移動 / 跳躍', 'A D / W（空中再按一次＝二段跳，限疾翎）'],
       ['輕攻擊', 'J　連按三下是連段，第三段打飛'],
@@ -314,7 +318,7 @@ export class SelectScreen {
     const title = this.mode === 'net' ? '選擇角色（連線）'
       : this.mode === 'local' ? (this.phase === 0 ? '玩家 1 選擇角色' : '玩家 2 選擇角色')
         : (this.phase === 0 ? '選擇你的角色' : '選擇對手');
-    text(ctx, title, 60, 60, { size: 30, color: '#ffffff', glow: 0.5 });
+    text(ctx, title, 60, 60, { size: 30, color: '#e8edf8', letter: 2 });
     const hint = this.mode === 'net'
       ? '↑↓←→ 選擇　Enter 準備／取消　Esc 離開房間'
       : '↑↓←→ 選擇　Enter 確定　Esc 返回';
@@ -323,7 +327,7 @@ export class SelectScreen {
     if (this.mode === 'net') {
       const st = this.net.peerHere ? '對手已連線' : '等待對手加入…';
       text(ctx, `房號 ${this.net.room}　${st}　延遲 ${this.net.rtt}ms`, VIEW - 60, 60, {
-        size: 16, color: '#7ef1ff', align: 'right',
+        size: 16, color: '#b9c4dc', align: 'right',
       });
     }
 
@@ -356,7 +360,7 @@ export class SelectScreen {
     const p1 = this.picks[1] ? getChar(this.picks[1]) : null;
     const label = (p, who, ready) => p ? `${who}：${p.name}${ready ? '（已準備）' : ''}` : `${who}：選擇中…`;
     text(ctx, label(p0, this.mode === 'solo' ? '你' : 'P1', this.ready[0]), VIEW / 2 - 200, WORLD.h - 92, {
-      size: 16, color: '#7ef1ff', align: 'right',
+      size: 16, color: '#b9c4dc', align: 'right',
     });
     text(ctx, 'VS', VIEW / 2, WORLD.h - 92, { size: 20, color: '#ffd24d', align: 'center' });
     text(ctx, label(p1, this.mode === 'solo' ? '對手' : 'P2', this.ready[1]), VIEW / 2 + 200, WORLD.h - 92, {
@@ -378,11 +382,11 @@ export class SelectScreen {
       ctx.fillRect(x, y, w, h);
       ctx.restore();
     }
-    drawPortrait(ctx, c, x + 54, y + h - 16, 0.62, this.t + i, on ? 'idle' : 'idle');
+    drawPortrait(ctx, c, x + 52, y + h - 12, 0.58, this.t + i, 'idle');
     text(ctx, c.name, x + w - 14, y + 34, { size: 22, color: on ? '#ffffff' : c.color, align: 'right' });
     text(ctx, c.en, x + w - 14, y + 54, { size: 12, color: '#8a93c0', align: 'right' });
     text(ctx, c.title, x + w - 14, y + h - 16, { size: 13, color: '#9fb4ff', align: 'right' });
-    if (sel0) this.cursorFrame(ctx, x, y, w, h, '#7ef1ff', 'P1');
+    if (sel0) this.cursorFrame(ctx, x, y, w, h, '#ffb45c', 'P1');
     if (sel1) this.cursorFrame(ctx, x, y, w, h, '#ff5ec4', 'P2');
   }
 
@@ -392,16 +396,23 @@ export class SelectScreen {
       { x: x - 4 + o, y: y - 4 + o }, { x: x + w + 4 - o, y: y - 4 + o },
       { x: x + w + 4 - o, y: y + h + 4 - o }, { x: x - 4 + o, y: y + h + 4 - o },
     ]);
-    neonStroke(ctx, p, color, 2.4, 1.2);
+    ctx.save();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+    ctx.stroke(p);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = color;
+    ctx.stroke(p);
+    ctx.restore();
     text(ctx, tag, x + w - 8 + (tag === 'P1' ? 0 : 0), y - 10, { size: 12, color, align: 'right' });
   }
 
   drawDetail(ctx, c, x, y, w) {
     const h = 196;
-    panel(ctx, x, y, w, h, c.color, { glow: 0.5 });
-    drawPortrait(ctx, c, x + 92, y + h - 22, 1.15, this.t, 'idle');
+    panel(ctx, x, y, w, h, c.color, { glow: 0.35 });
+    drawPortrait(ctx, c, x + 82, y + h - 18, 0.92, this.t, 'idle');
 
-    text(ctx, c.name, x + 180, y + 44, { size: 30, color: c.color, glow: 0.6 });
+    text(ctx, c.name, x + 180, y + 44, { size: 30, color: c.color });
     const nw = measure(ctx, c.name, 30);
     text(ctx, `${c.en}・${c.title}`, x + 190 + nw, y + 42, { size: 15, color: '#9fb4ff' });
     text(ctx, c.tagline, x + 180, y + 68, { size: 14, color: '#c3cbe8' });
@@ -411,7 +422,7 @@ export class SelectScreen {
     stats.forEach((s, i) => {
       const sy = y + 92 + i * 20;
       text(ctx, s[1], x + 180, sy + 10, { size: 13, color: '#9fb4ff' });
-      const bx = x + 224, bw = 150;
+      const bx = x + 228, bw = 150;
       ctx.fillStyle = 'rgba(255,255,255,0.08)';
       ctx.fillRect(bx, sy, bw, 10);
       ctx.fillStyle = c.color;
@@ -530,9 +541,9 @@ export class LobbyScreen {
     ctx.fillRect(0, 0, VIEW, WORLD.h);
 
     const cx = VIEW / 2;
-    text(ctx, '連線對戰', cx, 92, { size: 38, color: '#7ef1ff', align: 'center', glow: 1 });
+    stencil(ctx, '連線對戰', cx, 92, { size: 38, color: '#e8edf8', letter: 6 });
     text(ctx, '兩邊輸入同一組房號就會配對，先連進來的自動當主機。', cx, 124, {
-      size: 15, color: '#9fb4ff', align: 'center',
+      size: 15, color: '#8b96b4', align: 'center', letter: 1,
     });
 
     // 房號
@@ -543,7 +554,7 @@ export class LobbyScreen {
       const x = bx + i * (boxW + 18);
       const y = 170;
       const active = this.field === 'room' && i === this.room.length;
-      panel(ctx, x, y, boxW, boxH, active ? '#ffd24d' : (this.field === 'room' ? '#7ef1ff' : '#39405e'), { glow: active ? 1 : 0.4 });
+      panel(ctx, x, y, boxW, boxH, active ? '#ffb45c' : (this.field === 'room' ? '#8f9bb5' : '#4a5168'), { glow: active ? 1 : 0.4 });
       text(ctx, this.room[i] || '_', x + boxW / 2, y + 74, {
         size: 56, color: this.room[i] ? '#ffffff' : '#39405e', align: 'center', weight: 900,
       });
@@ -553,7 +564,7 @@ export class LobbyScreen {
     // 中繼位址
     const ax = cx - 300, ay = 310;
     text(ctx, '中繼伺服器位址（留空 = 跟遊戲同一台主機）', ax, ay - 12, { size: 14, color: '#9fb4ff' });
-    panel(ctx, ax, ay, 600, 48, this.field === 'address' ? '#7ef1ff' : '#39405e', { glow: this.field === 'address' ? 0.8 : 0 });
+    panel(ctx, ax, ay, 600, 48, this.field === 'address' ? '#ffb45c' : '#4a5168', { glow: this.field === 'address' ? 0.8 : 0 });
     text(ctx, this.address || 'ws://（本機）', ax + 16, ay + 32, {
       size: 18, color: this.address ? '#ffffff' : '#6f7aa3',
     });
@@ -564,7 +575,7 @@ export class LobbyScreen {
     keys.forEach((k, i) => {
       const col = i % 3, row = Math.floor(i / 3);
       const kx = cx - 168 + col * 116, ky = 384 + row * 64;
-      panel(ctx, kx, ky, 104, 54, '#39405e', { glow: 0 });
+      panel(ctx, kx, ky, 104, 54, '#4a5168', { glow: 0 });
       text(ctx, k === 'del' ? '←' : k, kx + 52, ky + 36, { size: 22, color: '#dfe6ff', align: 'center' });
       this.taps.add(kx, ky, 104, 54, `k${k}`);
     });
@@ -576,11 +587,11 @@ export class LobbyScreen {
       size: 14, color: '#6f7aa3', align: 'center',
     });
 
-    panel(ctx, cx + 200, 384, 150, 54, '#4cff9d', { glow: 0.8 });
+    panel(ctx, cx + 200, 384, 150, 54, '#5fa36a', { glow: 0.8 });
     text(ctx, '連線', cx + 275, 420, { size: 22, color: '#ffffff', align: 'center' });
     this.taps.add(cx + 200, 384, 150, 54, 'join');
 
-    panel(ctx, cx - 350, 384, 150, 54, '#8a93c0', { glow: 0 });
+    panel(ctx, cx - 350, 384, 150, 54, '#6b748f', { glow: 0 });
     text(ctx, '返回', cx - 275, 420, { size: 22, color: '#dfe6ff', align: 'center' });
     this.taps.add(cx - 350, 384, 150, 54, 'back');
 
@@ -632,17 +643,18 @@ export class ResultScreen {
     const lose = this.battle.fighters[this.winner === 0 ? 1 : 0];
     const cx = VIEW / 2;
 
-    text(ctx, 'K.O.', cx, 130, { size: 92, color: win.char.color, align: 'center', weight: 900, glow: 1.6, letter: 8 });
+    stencil(ctx, 'K.O.', cx, 130, { size: 92, color: win.char.color, letter: 10 });
     text(ctx, `${win.char.name} 獲勝`, cx, 180, { size: 30, color: '#ffffff', align: 'center' });
     text(ctx, `${this.battle.roundWins[0]} - ${this.battle.roundWins[1]}`, cx, 216, {
       size: 22, color: '#9fb4ff', align: 'center',
     });
 
+    // 勝者站左、敗者倒在右邊；兩邊都往外靠，武器才不會擋到字
     const bob = Math.sin(this.t * 2) * 6;
-    drawPortrait(ctx, win.char, cx - 240, 480 + bob, 2.0, this.t, 'idle');
+    drawPortrait(ctx, win.char, cx - 372, 556 + bob, 1.75, this.t, 'idle');
     ctx.save();
     ctx.globalAlpha = 0.45;
-    drawPortrait(ctx, lose.char, cx + 240, 480, 1.7, this.t, 'ko');
+    drawPortrait(ctx, lose.char, cx + 372, 556, 1.5, this.t, 'ko');
     ctx.restore();
 
     const stats = [
@@ -657,11 +669,11 @@ export class ResultScreen {
       text(ctx, s[2], cx + 60, y, { size: 22, color: lose.char.color, align: 'left' });
     });
 
-    panel(ctx, cx - 230, 600, 200, 54, '#4cff9d', { glow: 0.8 });
+    panel(ctx, cx - 230, 600, 200, 54, '#5fa36a', { glow: 0.8 });
     text(ctx, '再打一場', cx - 130, 636, { size: 20, color: '#ffffff', align: 'center' });
     this.taps.add(cx - 230, 600, 200, 54, 'again');
 
-    panel(ctx, cx + 30, 600, 200, 54, '#8a93c0', { glow: 0 });
+    panel(ctx, cx + 30, 600, 200, 54, '#6b748f', { glow: 0 });
     text(ctx, '回主畫面', cx + 130, 636, { size: 20, color: '#dfe6ff', align: 'center' });
     this.taps.add(cx + 30, 600, 200, 54, 'title');
 

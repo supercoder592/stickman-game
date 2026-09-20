@@ -1,8 +1,9 @@
-# NEON CLASH 霓虹亂鬥
+# STEEL CLASH 鋼鐵亂鬥
 
 ### ▶ [點這裡直接在瀏覽器玩](https://supercoder592.github.io/stickman-game/)
 
-瀏覽器上的近戰街機格鬥。**十位霓虹鬥士**、三回合兩勝、連段／格擋／衝刺閃避／必殺技，
+瀏覽器上的近戰街機格鬥。**十位各拿一把招牌兇器的鬥士**、三回合兩勝、
+連段／格擋／衝刺閃避／必殺技，
 可以一個人打 AI、兩個人擠同一個鍵盤，或是輸入四位數房號跨裝置連線對戰。
 
 * 純 JavaScript（ES modules）+ Canvas 2D，**沒有任何相依套件、沒有任何圖檔與音檔**
@@ -11,7 +12,7 @@
 * 連線用一支零相依的 Node 中繼伺服器（`server/relay.js`），同一支程式也負責把遊戲服務出去
 
 > 這個 repo 的前身是 Godot 版的火柴人遊戲。這一版是**整個打掉重做**的網頁版：
-> 新的美術方向（霓虹幾何）、新的十位角色、新的戰鬥系統與新的連線架構。
+> 寫實打光的美術、十位以武器定義的角色、新的戰鬥系統與新的連線架構。
 
 ---
 
@@ -21,10 +22,10 @@
 | --- | --- | --- |
 | 線上 | 點上面的連結 | GitHub Pages，單機與雙人同機可直接玩 |
 | 本機（含連線） | `npm start` → 開 http://localhost:8787 | 同時啟動遊戲與中繼伺服器 |
-| 單一檔案 | `npm run build` → 點開 `dist/neon-clash.html` | 一個 HTML 檔，離線也能玩 |
+| 單一檔案 | `npm run build` → 點開 `dist/steel-clash.html` | 一個 HTML 檔，離線也能玩 |
 
 直接用 `file://` 打開 `index.html` **不會動** —— 瀏覽器會擋下 ES module。
-要嘛用上面的 `npm start`，要嘛用打包好的 `dist/neon-clash.html`。
+要嘛用上面的 `npm start`，要嘛用打包好的 `dist/steel-clash.html`。
 
 ---
 
@@ -33,7 +34,7 @@
 | 按鍵 | 功能 |
 | --- | --- |
 | `A` `D` | 移動 |
-| `W` | 跳躍（疾翎可以在空中再按一次） |
+| `W` | 跳躍 |
 | `S`（空中） | 快速落地 |
 | `J` | 輕攻擊　連按三下＝三段連段，第三段把人打飛 |
 | `K` | 重攻擊　慢，但出招後段有霸體，打中直接轟開 |
@@ -52,21 +53,23 @@
 
 ## 十位角色
 
-每位角色 = 一組數值 + 一副剪影 + 一個被動 + 兩個技能 + 一招必殺。
-數值基準是血量 100、移速 300、跳躍 880，十個人都落在 ±25% 之內。
+**角色是由武器定義的。** 遠遠看剪影就該知道對面是誰：破壞錘的方頭、鉤爪的鎖鏈、
+鏈鋸的鋸齒、塔盾的一整片鐵板、長戟比人還高的柄。
+每位角色 = 一把武器 + 一組數值 + 一個被動 + 兩個技能 + 一招必殺。
+數值基準是血量 100、移速 300、跳躍 880，十個人都落在 ±35% 之內。
 
-| 角色 | 定位 | 被動 | 技能一 / 技能二 | 必殺 |
-| --- | --- | --- | --- | --- |
-| ⚡ **伏特** VOLT | 速攻拳手 | 超載：普攻最快，第三段必定麻痺 | 閃擊衝拳 / 雷幕 | 十萬伏特 |
-| 🔥 **燼火** EMBER | 均衡劍士 | 延燒：所有命中附帶灼燒，對燃燒目標 +15% | 炎斬波 / 昇龍焰 | 紅蓮亂舞 |
-| 🌊 **蒼瀧** AZURE | 長槍守衛 | 間合：攻擊距離最長，離得越遠打越痛 | 水龍突 / 渦流盾 | 蒼海之槍 |
-| 🍃 **疾翎** GALE | 空戰遊俠 | 輕身：二段跳、下墜較慢 | 迴旋風刃 / 滯空踢 | 暴風連斬 |
-| 🧊 **霜稜** FROST | 冰結術士 | 凍甲：打中她的人會被減速 | 冰棘地 / 絕對冷卻 | 絕對零度 |
-| ☠️ **蝕紫** VENOM | 疫毒刺客 | 毒素共鳴：對中毒目標 +25% | 毒霧陷阱 / 腐蝕爪 | 疫病領域 |
-| 🌋 **熔岳** MAGMA | 熔岩重錘 | 熔岩之軀：減傷 12%，反燒近身者 | 地裂錘 / 熔岩噴發 | 火山崩落 |
-| 🛡 **鋼獄** TITAN | 重裝壁壘 | 鋼體：受傷永久 −20%，但機動最差 | 盾衝 / 鋼壁 | 終結重砲 |
-| ✨ **星蝕** NOVA | 星塵術師 | 星威：傷害 +20%，受傷也 +12% | 星辰彈 / 重力塌縮 | 超新星 |
-| 🗡 **夜刃** SHADE | 影狩刺客 | 殘影：15% 閃避，閃過後加速 | 影步斬 / 虛影誘餌 | 千影亂舞 |
+| 角色 | 武器 | 血量 / 移速 | 被動 | 技能一 / 技能二 | 必殺 |
+| --- | --- | --- | --- | --- | --- |
+| **鐵砧** ANVIL | 破壞錘 | 128 / 248 | 重量級：出招自帶霸體，被擊退 −40% | 碎地重擊 / 全力掄擊 | 拆樓作業 |
+| **鉤索** HOOK | 鉤爪 | 98 / 326 | 索敵：鉤中後 3 秒內對該目標 +20% | 鉤索擒拿 / 飛索突進 | 鎖鏈亂舞 |
+| **裂齒** RIPPER | 鏈鋸 | 106 / 300 | 撕裂：命中造成可疊加的流血 | 鏈鋸猛攻 / 撕裂突進 | 血肉磨坊 |
+| **鉤魂** REAPER | 鎖鏈鐮 | 100 / 296 | 死神凝視：對殘血（<35%）目標 +30% | 迴旋鐮 / 拋鐮 | 收割 |
+| **疾影** WRAITH | 雙匕 | 92 / 345 | 殘影：15% 完全閃避，閃過後暴衝 | 影襲 / 亂刺 | 千刺 |
+| **斷頭** CLEAVER | 戰斧 | 114 / 268 | 處刑：對硬直中的目標 +25% | 蓄力劈 / 上挑斬 | 裂地斬 |
+| **壁壘** BULWARK | 塔盾釘錘 | 132 / 242 | 鋼體：受傷永久 −20%，擊退 −40% | 盾牌衝撞 / 鐵壁 | 盾擊崩地 |
+| **長戟** LANCER | 長柄戟 | 104 / 288 | 間合：距離全場最長，越遠打越痛 | 貫穿突刺 / 橫掃 | 一閃 |
+| **熔爐** FURNACE | 火焰拳套 | 110 / 280 | 高溫：命中附帶灼燒，對燃燒目標 +15% | 噴火 / 爆燃 | 焚化 |
+| **高壓** SURGE | 電擊棍 | 96 / 318 | 導電：輕三段必定麻痺，普攻最快 | 電擊突進 / 電網 | 過載 |
 
 設計細節（數值表、招式元件、被動實作位置）見 [`docs/design.md`](docs/design.md)。
 
@@ -129,8 +132,9 @@ src/
   characters.js         十位角色的資料（數值、剪影零件、技能參數、被動）
   ai.js                 單機對手：輸出和玩家同格式的 InputFrame，不作弊
   rig.js                骨架與姿勢（走、跳、三段連段、重擊、施法、昇龍、受擊、倒地…）
-  render.js             場景與角色繪製：霓虹夜城、地板網格、身體零件、武器
-  gfx.js                繪圖原語：霓虹描邊、發光填色、新月斬、六角形、面板、文字
+  material.js           寫實渲染的底層：材質表、方向光漸層、高光、遮蔽陰影、輪廓光
+  render.js             場景與角色繪製：雨夜工業區、濕地板倒影、人體、頭部裝備、武器
+  gfx.js                繪圖原語：鋼板面板、模板字、描邊發光（招式特效用）、路徑工具
   fx.js                 特效系統：粒子、幾何特效、傷害數字、頓幀、震屏、白閃
   hud.js                對戰 HUD：血條、氣條、計時、回合點數、技能冷卻、連段數
   screens.js            主畫面、選角、連線大廳、結算
@@ -140,7 +144,7 @@ src/
   audio.js              WebAudio 合成音效與 16 步背景音樂
   util.js               數學、亂數、顏色小工具
 server/relay.js         中繼伺服器 + 靜態檔案伺服器（手寫 WebSocket，零相依）
-tools/build.js          打包成單一 HTML（dist/neon-clash.html）
+tools/build.js          打包成單一 HTML（dist/steel-clash.html）
 docs/design.md          設計與架構說明
 ```
 
@@ -153,7 +157,7 @@ docs/design.md          設計與架構說明
 * **連線**：開兩個分頁、同房號配對 → 角色分配（host/guest）、雙方進入對戰、
   主機改血量客戶端同步（42/42）、客戶端的輸入讓主機端角色真的移動、
   客戶端看到的自己與主機差 1px，0 錯誤
-* **打包檔**：`dist/neon-clash.html` 用 `file://` 開啟可正常啟動遊玩
+* **打包檔**：`dist/steel-clash.html` 用 `file://` 開啟可正常啟動遊玩
 
 ## 加一位角色
 
@@ -162,16 +166,21 @@ docs/design.md          設計與架構說明
 ```js
 {
   id: 'ivy', name: '常春', en: 'IVY', title: '荊棘園丁',
-  color: '#8dff5a', accent: '#ffe27a',
+  color: '#7fae4a', accent: '#d8c06a', tagline: '纏上來就別想走',
   stats: { hp: 98, speed: 305, jump: 880, weight: 1, atk: 1, def: 1, dash: 1 },
-  build: { scale: 1, limb: 1, head: 1, torso: 1 },
-  look: { head: 'crown', back: 'tail', weapon: 'staff', shoulder: 'slim' },
+  build: { scale: 1, bulk: 1, headScale: 1 },
+  gear: { head: 'hood', shoulder: 'plate', back: 'coil', chest: 'vest' },
+  palette: { armor: '#5c6b3f', cloth: '#3b4430', armorMat: 'rust', metalMat: 'iron' },
+  weapon: { kind: 'chainscythe', reach: 1.15, hold: -0.4, twoHand: false },
   passive: { name: '再生', desc: '每秒回復少量血量。' },
   skills: [ { name: '藤鞭', cd: 3, kind: 'dashStrike', params: {...} }, ... ],
-  ult: { name: '森羅', kind: 'vortex', params: {...} },
+  ult: { name: '森羅', kind: 'reap', params: {...} },
 }
 ```
 
-`kind` 對應 `src/skills.js` 裡的元件（共 20 種），`look` 的零件名對應 `src/render.js`
-的頭部／背部／武器／肩甲畫法。需要全新的被動時，才需要動到 `fighter.js` 的
-`dealDamage()` / `receiveHit()` / `counterPassives()`。
+* `weapon.kind` 對應 `src/render.js` 的 `drawWeapon()`（hammer / grapple / chainsaw /
+  chainscythe / daggers / axe / shieldmace / halberd / gauntlets / baton），
+  `hold` 是武器相對前臂的握持角度，`reach` 直接影響普攻判定距離。
+* `gear` 的零件名對應頭部／肩甲／背部／胸甲的畫法，`palette` 決定這個人的金屬與布料。
+* `skills[].kind` 對應 `src/skills.js` 裡的元件。需要全新的被動時，
+  才需要動到 `fighter.js` 的 `dealDamage()` / `receiveHit()` / `counterPassives()`。

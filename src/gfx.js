@@ -1,6 +1,6 @@
-// 霓虹繪圖工具組。
+// 繪圖工具組。
 //
-// 全遊戲的視覺語言只有一條規則：**深色實心 + 霓虹描邊 + 加法光暈**。
+// 招式特效走「深色實心 + 描邊 + 加法光暈」；UI 走舊鋼板質感（見 panel）。
 // 光暈不用 ctx.shadowBlur（在低階裝置上很貴），改成「同一條路徑描三次」：
 // 最外圈粗而淡、中圈中等、最內圈是亮芯，疊出發光管的感覺。
 
@@ -184,9 +184,12 @@ export function measure(ctx, str, size = 20, weight = 700) {
   return w;
 }
 
-/** 面板：半透明深色底 + 霓虹外框，所有 UI 共用 */
-export function panel(ctx, x, y, w, h, color = '#4de2ff', opts = {}) {
-  const { fill = 'rgba(8,10,22,0.86)', width = 2, glow = 0.8, cut = 12 } = opts;
+/**
+ * 面板：一塊有切角的舊鋼板。
+ * 深色金屬漸層 + 上緣受光的亮邊 + 下緣的暗邊 + 一道主題色的噴漆，
+ * 整套 UI（HUD、選單、觸控鍵）共用同一個質感，跟角色的寫實打光對得上。
+ */
+export function platePath(x, y, w, h, cut = 12) {
   const p = new Path2D();
   p.moveTo(x + cut, y);
   p.lineTo(x + w, y);
@@ -195,8 +198,67 @@ export function panel(ctx, x, y, w, h, color = '#4de2ff', opts = {}) {
   p.lineTo(x, y + h);
   p.lineTo(x, y + cut);
   p.closePath();
-  ctx.fillStyle = fill;
-  ctx.fill(p);
-  neonStroke(ctx, p, color, width, glow);
   return p;
+}
+
+export function panel(ctx, x, y, w, h, color = '#8f9bb5', opts = {}) {
+  const { fill = null, width = 1.6, glow = 0.8, cut = 12 } = opts;
+  const p = platePath(x, y, w, h, cut);
+  ctx.save();
+
+  // 鋼板本體
+  if (fill) {
+    ctx.fillStyle = fill;
+  } else {
+    const g = ctx.createLinearGradient(x, y, x + w * 0.25, y + h);
+    g.addColorStop(0, 'rgba(46,52,64,0.95)');
+    g.addColorStop(0.45, 'rgba(26,30,38,0.95)');
+    g.addColorStop(1, 'rgba(13,15,20,0.96)');
+    ctx.fillStyle = g;
+  }
+  ctx.fill(p);
+
+  // 斜向的刷紋
+  ctx.save();
+  ctx.clip(p);
+  ctx.globalAlpha = 0.05;
+  ctx.strokeStyle = '#cdd6e8';
+  ctx.lineWidth = 1;
+  for (let i = -h; i < w + h; i += 7) {
+    ctx.beginPath();
+    ctx.moveTo(x + i, y + h);
+    ctx.lineTo(x + i + h, y);
+    ctx.stroke();
+  }
+  // 上緣的主題色噴漆
+  ctx.globalAlpha = 0.5 + glow * 0.3;
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, w, 3);
+  ctx.globalAlpha = 0.12;
+  ctx.fillRect(x, y, w, Math.min(h * 0.34, 22));
+  ctx.restore();
+
+  // 邊緣：受光的上緣亮、背光的下緣暗
+  ctx.lineWidth = width;
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+  ctx.stroke(p);
+  ctx.save();
+  ctx.clip(p);
+  ctx.strokeStyle = 'rgba(210,222,245,0.28)';
+  ctx.lineWidth = 1.4;
+  ctx.translate(0.8, 0.8);
+  ctx.stroke(p);
+  ctx.restore();
+
+  ctx.restore();
+  return p;
+}
+
+/** 鏤空模板字：工業感的標題與數字 */
+export function stencil(ctx, str, x, y, opts = {}) {
+  const { size = 30, color = '#e8edf8', align = 'center', weight = 900, letter = 2, alpha = 1 } = opts;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  text(ctx, str, x, y, { size, color, align, weight, letter, shadow: 'rgba(0,0,0,0.85)' });
+  ctx.restore();
 }

@@ -1,6 +1,6 @@
 // 對戰 HUD：血條、氣條、計時、回合數、技能冷卻、連段數與大字幕。
 
-import { panel, text, measure, neonStroke, glowFill, circlePath, ngonPath, polyPath, linePath } from './gfx.js';
+import { panel, platePath, stencil, text, measure, neonStroke, circlePath, polyPath } from './gfx.js';
 import { WORLD } from './render.js';
 import { clamp, withAlpha, lerp } from './util.js';
 import { MAX_METER } from './combat.js';
@@ -43,8 +43,8 @@ export function drawHud(ctx, battle, opts = {}) {
     ctx.save();
     ctx.translate(x, 210);
     ctx.scale(pop, pop);
-    text(ctx, `${battle.comboShown}`, 0, 0, {
-      size: 54, color: withAlpha(f.char.accent, a), align: 'center', weight: 900, glow: 1,
+    stencil(ctx, `${battle.comboShown}`, 0, 0, {
+      size: 56, color: withAlpha(f.char.accent, a), letter: 0,
     });
     text(ctx, 'COMBO', 0, 26, { size: 18, color: withAlpha('#ffffff', a * 0.8), align: 'center' });
     ctx.restore();
@@ -60,7 +60,7 @@ function drawFighterBar(ctx, f, side, ratio, ghostRatio, battle, t) {
   const y = 42;
   const c = f.char.color;
 
-  // 外框
+  // 外框：斜切的鋼製血條槽
   const frame = polyPath(right ? [
     { x: x + BAR_W, y }, { x: x + BAR_W, y: y + BAR_H },
     { x: x + 16, y: y + BAR_H }, { x, y: y + BAR_H / 2 }, { x: x + 16, y },
@@ -68,7 +68,10 @@ function drawFighterBar(ctx, f, side, ratio, ghostRatio, battle, t) {
     { x, y }, { x: x + BAR_W - 16, y }, { x: x + BAR_W, y: y + BAR_H / 2 },
     { x: x + BAR_W - 16, y: y + BAR_H }, { x, y: y + BAR_H },
   ]);
-  ctx.fillStyle = 'rgba(6,8,18,0.9)';
+  const slot = ctx.createLinearGradient(x, y, x, y + BAR_H);
+  slot.addColorStop(0, 'rgba(10,11,16,0.96)');
+  slot.addColorStop(1, 'rgba(26,29,37,0.96)');
+  ctx.fillStyle = slot;
   ctx.fill(frame);
 
   // 血量（受傷後殘影條先退）
@@ -76,13 +79,17 @@ function drawFighterBar(ctx, f, side, ratio, ghostRatio, battle, t) {
   ctx.clip(frame);
   const gw = BAR_W * ghostRatio;
   const hw = BAR_W * ratio;
-  ctx.fillStyle = 'rgba(255,90,120,0.55)';
+  ctx.fillStyle = 'rgba(150,26,38,0.85)';
   ctx.fillRect(right ? x + BAR_W - gw : x, y, gw, BAR_H);
-  const grad = ctx.createLinearGradient(x, 0, x + BAR_W, 0);
-  grad.addColorStop(0, right ? c : withAlpha(c, 0.75));
-  grad.addColorStop(1, right ? withAlpha(c, 0.75) : c);
+  const grad = ctx.createLinearGradient(x, y, x, y + BAR_H);
+  grad.addColorStop(0, withAlpha(c, 0.95));
+  grad.addColorStop(0.45, c);
+  grad.addColorStop(1, 'rgba(0,0,0,0.55)');
   ctx.fillStyle = grad;
   ctx.fillRect(right ? x + BAR_W - hw : x, y, hw, BAR_H);
+  // 血條表面的高光
+  ctx.fillStyle = 'rgba(255,255,255,0.14)';
+  ctx.fillRect(right ? x + BAR_W - hw : x, y + 2, hw, 3);
   // 斜線紋理
   ctx.globalAlpha = 0.16;
   ctx.strokeStyle = '#000';
@@ -94,14 +101,24 @@ function drawFighterBar(ctx, f, side, ratio, ghostRatio, battle, t) {
     ctx.stroke();
   }
   ctx.restore();
-  neonStroke(ctx, frame, c, 2, 0.9);
+  ctx.save();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+  ctx.stroke(frame);
+  ctx.lineWidth = 1.2;
+  ctx.strokeStyle = 'rgba(205,218,242,0.3)';
+  ctx.stroke(frame);
+  ctx.restore();
 
   // 氣條
   const my = y + BAR_H + 6;
   const mw = BAR_W * 0.62;
   const mx = right ? x + BAR_W - mw : x;
-  ctx.fillStyle = 'rgba(6,8,18,0.9)';
+  ctx.fillStyle = 'rgba(12,14,19,0.95)';
   ctx.fillRect(mx, my, mw, 9);
+  ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(mx + 0.5, my + 0.5, mw - 1, 8);
   const meter = clamp(f.meter / MAX_METER, 0, 1);
   const full = meter >= 1;
   ctx.fillStyle = full ? '#fff27a' : withAlpha(f.char.accent, 0.9);
@@ -115,7 +132,7 @@ function drawFighterBar(ctx, f, side, ratio, ghostRatio, battle, t) {
     ctx.fillRect(mx, my - 2, mw, 13);
     ctx.restore();
     text(ctx, '必殺 READY', right ? mx + mw : mx, my + 30, {
-      size: 13, color: '#fff27a', align: right ? 'right' : 'left', glow: 1,
+      size: 13, color: '#ffd76a', align: right ? 'right' : 'left', letter: 2,
     });
   }
 
@@ -123,7 +140,7 @@ function drawFighterBar(ctx, f, side, ratio, ghostRatio, battle, t) {
   const label = `${f.char.name}`;
   const sub = `${f.char.en}・${f.char.title}`;
   text(ctx, label, right ? x + BAR_W : x, y - 10, {
-    size: 22, color: c, align: right ? 'right' : 'left', glow: 0.6,
+    size: 22, color: c, align: right ? 'right' : 'left', letter: 1,
   });
   const lw = measure(ctx, label, 22);
   text(ctx, sub, right ? x + BAR_W - lw - 10 : x + lw + 10, y - 11, {
@@ -135,9 +152,11 @@ function drawFighterBar(ctx, f, side, ratio, ghostRatio, battle, t) {
     const px = right ? x + BAR_W - 12 - i * 22 : x + 12 + i * 22;
     const won = battle.roundWins[side] > i;
     const p = circlePath(px, y + BAR_H + 30, 7);
-    ctx.fillStyle = won ? c : 'rgba(255,255,255,0.10)';
+    ctx.fillStyle = won ? c : 'rgba(255,255,255,0.08)';
     ctx.fill(p);
-    neonStroke(ctx, p, won ? c : '#4a5480', 1.6, won ? 1 : 0);
+    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = won ? 'rgba(255,255,255,0.55)' : 'rgba(150,163,190,0.5)';
+    ctx.stroke(p);
   }
 
   // 狀態圖示
@@ -165,15 +184,11 @@ function drawTimer(ctx, battle) {
   const cx = VIEW / 2;
   const secs = Math.ceil(battle.timer);
   const urgent = secs <= 10 && battle.state === 'fight';
-  const hex = ngonPath(cx, 64, 46, 6, Math.PI / 6);
-  ctx.fillStyle = 'rgba(6,8,18,0.92)';
-  ctx.fill(hex);
-  neonStroke(ctx, hex, urgent ? '#ff4d6d' : '#7ef1ff', 2.2, 1);
-  text(ctx, String(secs).padStart(2, '0'), cx, 76, {
-    size: 40, color: urgent ? '#ff8095' : '#ffffff', align: 'center', weight: 900,
-    glow: urgent ? 1.4 : 0.4,
+  panel(ctx, cx - 52, 26, 104, 72, urgent ? '#c8323f' : '#8f9bb5', { cut: 14, glow: urgent ? 1 : 0.4 });
+  stencil(ctx, String(secs).padStart(2, '0'), cx, 86, {
+    size: 46, color: urgent ? '#ff6b78' : '#e9eef8', letter: 3,
   });
-  text(ctx, `ROUND ${battle.round}`, cx, 122, { size: 13, color: '#93a0cc', align: 'center' });
+  text(ctx, `ROUND ${battle.round}`, cx, 118, { size: 12, color: '#8d97b0', align: 'center', letter: 3 });
 }
 
 function drawSkillBar(ctx, f, x, y, t) {
@@ -187,16 +202,16 @@ function drawSkillBar(ctx, f, x, y, t) {
     const w = 100, h = 62;
     const ready = slot.ult ? f.meter >= MAX_METER : slot.cd <= 0;
     const col = slot.ult ? '#fff27a' : f.char.color;
-    panel(ctx, sx, y, w, h, ready ? col : '#39405e', { glow: ready ? 0.9 : 0, cut: 8 });
+    panel(ctx, sx, y, w, h, ready ? col : '#4a5168', { glow: ready ? 1 : 0, cut: 8 });
     // 冷卻遮罩
     if (!ready && !slot.ult) {
       const k = clamp(slot.cd / slot.max, 0, 1);
-      ctx.fillStyle = 'rgba(4,6,14,0.72)';
+      ctx.fillStyle = 'rgba(4,5,9,0.8)';
       ctx.fillRect(sx, y + h * (1 - k), w, h * k);
       text(ctx, slot.cd.toFixed(1), sx + w / 2, y + h / 2 + 8, { size: 20, color: '#ffffff', align: 'center' });
     } else if (!ready) {
       const k = clamp(f.meter / MAX_METER, 0, 1);
-      ctx.fillStyle = 'rgba(4,6,14,0.72)';
+      ctx.fillStyle = 'rgba(4,5,9,0.8)';
       ctx.fillRect(sx, y + h * (1 - k), w, h * k);
       text(ctx, `${Math.floor(k * 100)}%`, sx + w / 2, y + h / 2 + 8, { size: 18, color: '#ffe27a', align: 'center' });
     }
@@ -209,8 +224,8 @@ function drawSkillBar(ctx, f, x, y, t) {
     if (ready && slot.ult) {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = 0.25 + 0.2 * Math.sin(t * 7);
-      ctx.fillStyle = '#fff27a';
+      ctx.globalAlpha = 0.14 + 0.12 * Math.sin(t * 7);
+      ctx.fillStyle = '#ffd76a';
       ctx.fillRect(sx, y, w, h);
       ctx.restore();
     }
@@ -228,7 +243,7 @@ function drawBanner(ctx, battle) {
   ctx.translate(cx, cy);
   ctx.scale(pop, pop);
   ctx.globalAlpha = a;
-  text(ctx, b.text, 0, 0, { size: 72, color: b.color, align: 'center', weight: 900, glow: 1.4, letter: 4 });
+  stencil(ctx, b.text, 0, 0, { size: 74, color: b.color, letter: 6 });
   if (b.sub) text(ctx, b.sub, 0, 40, { size: 20, color: '#dfe6ff', align: 'center' });
   ctx.restore();
 }
@@ -243,6 +258,6 @@ function drawCountdown(ctx, battle) {
   ctx.translate(VIEW / 2, 300);
   ctx.scale(pop, pop);
   ctx.globalAlpha = clamp(frac * 2.2, 0, 1);
-  text(ctx, String(n), 0, 0, { size: 120, color: '#7ef1ff', align: 'center', weight: 900, glow: 1.6 });
+  stencil(ctx, String(n), 0, 0, { size: 124, color: '#e9eef8', letter: 0 });
   ctx.restore();
 }

@@ -19,7 +19,7 @@ const STEP = 1 / 60;
 export async function boot(canvas) {
   const game = new Game(canvas);
   game.start();
-  window.NEON = game;            // 方便在 console 或自動測試裡戳
+  window.GAME = window.NEON = game;   // 方便在 console 或自動測試裡戳
   return game;
 }
 
