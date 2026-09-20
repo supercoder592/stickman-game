@@ -659,16 +659,16 @@ function drawFace(ctx, h, r, char, flat) {
   ctx.fill();
 
   // --- 眼窩：比膚色深一階的一塊，眼睛坐在裡面 ---
-  ctx.fillStyle = 'rgba(110,60,38,0.34)';
+  ctx.fillStyle = 'rgba(110,60,38,0.3)';
   ctx.beginPath();
-  ctx.ellipse(h.x + r * 0.44, h.y - r * 0.06, r * 0.3, r * 0.21, -0.14, 0, Math.PI * 2);
+  ctx.ellipse(h.x + r * 0.46, h.y - r * 0.07, r * 0.32, r * 0.24, -0.14, 0, Math.PI * 2);
   ctx.fill();
 
   // --- 眼白 ---
   const eye = new Path2D();
-  eye.moveTo(h.x + r * 0.2, h.y - r * 0.02);
-  eye.quadraticCurveTo(h.x + r * 0.44, h.y - r * 0.24, h.x + r * 0.68, h.y - r * 0.06);
-  eye.quadraticCurveTo(h.x + r * 0.46, h.y + r * 0.14, h.x + r * 0.2, h.y - r * 0.02);
+  eye.moveTo(h.x + r * 0.24, h.y - r * 0.04);
+  eye.quadraticCurveTo(h.x + r * 0.46, h.y - r * 0.28, h.x + r * 0.7, h.y - r * 0.06);
+  eye.quadraticCurveTo(h.x + r * 0.48, h.y + r * 0.13, h.x + r * 0.24, h.y - r * 0.04);
   eye.closePath();
   ctx.fillStyle = '#f7f3ec';
   ctx.fill(eye);
@@ -678,33 +678,38 @@ function drawFace(ctx, h, r, char, flat) {
   ctx.clip(eye);
   ctx.fillStyle = mixColor(char.accent || '#7a6048', '#4a3524', 0.55);
   ctx.beginPath();
-  ctx.ellipse(h.x + r * 0.53, h.y - r * 0.03, r * 0.13, r * 0.15, 0, 0, Math.PI * 2);
+  ctx.ellipse(h.x + r * 0.54, h.y - r * 0.03, r * 0.14, r * 0.16, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = ink;
   ctx.beginPath();
-  ctx.ellipse(h.x + r * 0.55, h.y - r * 0.03, r * 0.07, r * 0.1, 0, 0, Math.PI * 2);
+  ctx.ellipse(h.x + r * 0.57, h.y - r * 0.03, r * 0.08, r * 0.11, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // 眼神光
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath();
+  ctx.ellipse(h.x + r * 0.5, h.y - r * 0.1, r * 0.045, r * 0.045, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
   // --- 上眼瞼：一條粗黑，眼睛的重量全在這裡 ---
   ctx.strokeStyle = ink;
-  ctx.lineWidth = r * 0.11;
+  ctx.lineWidth = r * 0.12;
   ctx.beginPath();
-  ctx.moveTo(h.x + r * 0.19, h.y - r * 0.03);
-  ctx.quadraticCurveTo(h.x + r * 0.44, h.y - r * 0.26, h.x + r * 0.69, h.y - r * 0.07);
+  ctx.moveTo(h.x + r * 0.23, h.y - r * 0.05);
+  ctx.quadraticCurveTo(h.x + r * 0.46, h.y - r * 0.3, h.x + r * 0.71, h.y - r * 0.07);
   ctx.stroke();
   // 下眼瞼：細一點
   ctx.lineWidth = r * 0.05;
   ctx.strokeStyle = 'rgba(36,26,34,0.5)';
   ctx.beginPath();
-  ctx.moveTo(h.x + r * 0.24, h.y + r * 0.02);
-  ctx.quadraticCurveTo(h.x + r * 0.46, h.y + r * 0.13, h.x + r * 0.66, h.y - r * 0.02);
+  ctx.moveTo(h.x + r * 0.27, h.y + r * 0.01);
+  ctx.quadraticCurveTo(h.x + r * 0.48, h.y + r * 0.12, h.x + r * 0.68, h.y - r * 0.03);
   ctx.stroke();
 
   // --- 眉毛：畫成一塊楔形，內側粗外側細，壓得越低越兇 ---
   ctx.fillStyle = ink;
   ctx.beginPath();
-  const brow = [P(0.06, -0.44), P(0.72, -0.24), P(0.7, -0.12), P(0.08, -0.28)];
+  const brow = [P(0.14, -0.46), P(0.74, -0.26), P(0.72, -0.14), P(0.16, -0.3)];
   ctx.moveTo(brow[0].x, brow[0].y);
   for (const q of brow.slice(1)) ctx.lineTo(q.x, q.y);
   ctx.closePath();
@@ -739,16 +744,17 @@ function drawFace(ctx, h, r, char, flat) {
 
   // --- 耳朵：外廓 + 內耳的一道線 ---
   const ear = smooth([
-    P(-0.34, -0.12), P(-0.08, -0.04), P(-0.06, 0.28), P(-0.3, 0.34),
-  ], 0.85);
-  shade(ctx, ear, MAT.skin, { cx: h.x - r * 0.2, cy: h.y + r * 0.1, r: r * 0.5, outlineWidth: 1.8 });
+    P(-0.56, -0.02), P(-0.38, 0.02), P(-0.36, 0.26), P(-0.54, 0.28),
+  ], 0.9);
+  shade(ctx, ear, MAT.skin, {
+    cx: h.x - r * 0.46, cy: h.y + r * 0.12, r: r * 0.3, outline: 0.55, outlineWidth: 1.1,
+  });
   ctx.save();
-  ctx.clip(ear);
-  ctx.strokeStyle = 'rgba(120,64,40,0.5)';
-  ctx.lineWidth = r * 0.07;
+  ctx.strokeStyle = 'rgba(120,64,40,0.45)';
+  ctx.lineWidth = r * 0.05;
   ctx.beginPath();
-  ctx.moveTo(h.x - r * 0.24, h.y - r * 0.02);
-  ctx.quadraticCurveTo(h.x - r * 0.1, h.y + r * 0.08, h.x - r * 0.16, h.y + r * 0.24);
+  ctx.moveTo(h.x - r * 0.5, h.y + r * 0.04);
+  ctx.quadraticCurveTo(h.x - r * 0.42, h.y + r * 0.12, h.x - r * 0.46, h.y + r * 0.22);
   ctx.stroke();
   ctx.restore();
 }
@@ -761,8 +767,20 @@ function drawHair(ctx, h, r, style, color, flat) {
   };
   const o = { cx: h.x, cy: h.y - r * 0.4, r: r * 1.4 };
   switch (style) {
-    case 'bald':
+    case 'bald': {      // 光頭：頭皮的反光 + 後腦的鬍渣陰影
+      if (flat) break;
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,0.14)';
+      ctx.beginPath();
+      ctx.ellipse(h.x - r * 0.1, h.y - r * 0.78, r * 0.34, r * 0.16, -0.35, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(40,26,20,0.22)';
+      ctx.beginPath();
+      ctx.ellipse(h.x - r * 0.42, h.y - r * 0.2, r * 0.38, r * 0.48, 0.15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
       break;
+    }
     case 'wild': {       // 爆炸頭：往後掃的大尖角
         const pts = [
           { x: h.x + r * 0.9, y: h.y - r * 0.55 },
