@@ -1,0 +1,13 @@
+{
+  "name": "neon-clash",
+  "version": "1.0.0",
+  "description": "NEON CLASH 霓虹亂鬥 —— 瀏覽器上的近戰街機格鬥，十位角色、單機／雙人同機／房號連線對戰。純 JavaScript，無相依套件。",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server/relay.js",
+    "build": "node tools/build.js"
+  },
+  "engines": { "node": ">=18" },
+  "private": true,
+  "license": "MIT"
+}

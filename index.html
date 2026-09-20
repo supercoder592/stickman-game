@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>NEON CLASH 霓虹亂鬥</title>
+<!-- 內嵌的霓虹六角形圖示，免得瀏覽器去要一個不存在的 favicon -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2305060f'/%3E%3Cpath d='M16 4l10 6v12l-10 6-10-6V10z' fill='none' stroke='%237ef1ff' stroke-width='3'/%3E%3Cpath d='M16 11l5 3v6l-5 3-5-3v-6z' fill='%23ff5ec4'/%3E%3C/svg%3E">
+<meta name="description" content="瀏覽器上的近戰街機格鬥：十位霓虹鬥士、單機／雙人同機／房號連線對戰。">
+<style>
+  :root {
+    --bg: #05060f;
+    --edge: #1b2040;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg);
+    overflow: hidden;
+    /* 中文介面靠系統字型，不下載任何字檔 —— 開啟即玩 */
+    font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei",
+      "Hiragino Sans", "Heiti TC", system-ui, sans-serif;
+    color: #dfe6ff;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #stage {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  /* 畫布用 CSS 等比放大，邏輯解析度固定 1280×720 */
+  canvas {
+    image-rendering: auto;
+    background: #05060f;
+    box-shadow: 0 0 0 1px var(--edge), 0 24px 80px rgba(0, 0, 0, .8);
+    touch-action: none;
+  }
+  /* 掃描線與暗角：整個畫面的街機質感，不影響遊戲繪製 */
+  #veil {
+    position: fixed; inset: 0; pointer-events: none;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,.20) 0 1px, rgba(0,0,0,0) 1px 3px),
+      radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,.65) 100%);
+    mix-blend-mode: multiply;
+  }
+  #boot {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px;
+    background: var(--bg); z-index: 5; text-align: center; padding: 24px;
+  }
+  #boot h1 { font-size: 28px; letter-spacing: .3em; margin: 0; color: #7ef1ff; }
+  #boot p { margin: 0; font-size: 14px; color: #8a93c0; line-height: 1.7; }
+  #boot code {
+    color: #ffb3d9; background: #12162c; padding: 2px 6px; border-radius: 4px;
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="game" width="1280" height="720"></canvas></div>
+<div id="veil"></div>
+<div id="boot">
+  <h1>NEON CLASH</h1>
+  <p>載入中…</p>
+</div>
+<script type="module">
+  // 模組載入失敗時把原因寫在畫面上 —— 手機瀏覽器沒有 console 可看。
+  const boot = document.getElementById('boot');
+  const fail = (msg) => {
+    boot.innerHTML = '<h1>NEON CLASH</h1>' +
+      '<p>啟動失敗：' + msg + '</p>' +
+      '<p>用 <code>file://</code> 直接開啟時瀏覽器會擋下模組，<br>' +
+      '請改用 <code>npx serve</code>／<code>python3 -m http.server</code>，' +
+      '或開啟打包好的 <code>dist/neon-clash.html</code>。</p>';
+  };
+  window.addEventListener('error', (e) => { if (boot.isConnected) fail(e.message); });
+  try {
+    const { boot: start } = await import('./src/main.js');
+    await start(document.getElementById('game'));
+    boot.remove();
+  } catch (err) {
+    fail(err && err.message ? err.message : String(err));
+  }
+</script>
+</body>
+</html>
