@@ -417,6 +417,8 @@ function materials(char) {
     strap: MAT.leather,
     rubber: MAT.rubber,
     glove: tint(MAT.rubber, char.accent, 0.62),
+    wrap: { base: '#ded6c4', light: '#f6f1e6', dark: '#9d9482', spec: 0.06, rough: 0.95 },
+    shoe: tint(MAT.leather, p.shoe || '#2b2a2e', 0.6),
     accent: char.accent,
     rim: c,
   };
@@ -473,6 +475,8 @@ function drawBody(ctx, char, J, f, { flat = null, alpha = 1, noRim = false } = {
   const t = f.animTime || 0;
 
   const mat = (m) => (flat ? { base: flat, light: flat, dark: flat, spec: 0, rough: 1 } : m);
+  // outfit: 'gi' 開襟道服／'vest' 無袖背心／'sash' 打赤膊只繫腰帶／'robe' 長袍
+  const outfit = gear.outfit || 'gi';
   const opt = (cx, cy, r, extra = {}) => ({ cx, cy, r, rim, alpha, ...extra });
 
   // ---------- 背後的裝備 ----------
@@ -483,9 +487,10 @@ function drawBody(ctx, char, J, f, { flat = null, alpha = 1, noRim = false } = {
     ...m, base: mixColor(m.base, '#000000', 0.42), light: mixColor(m.light, '#000000', 0.4),
     dark: mixColor(m.dark, '#000000', 0.3),
   });
-  shade(ctx, limbPath({ x: J.hip.x, y: J.hip.y - 3 }, J.kneeB, J.footB, 8.8 * bulk, 6 * bulk, 4 * bulk),
-    backDim(M.cloth), opt(J.kneeB.x, J.kneeB.y, 26));
-  drawBoot(ctx, J.footB, backDim(M.armor), bulk, opt(J.footB.x, J.footB.y, 12));
+  drawLeg(ctx, J.hip, J.kneeB, J.footB, M, {
+    mat: (m) => mat(backDim(m)), opt, bulk, flat,
+    outfit: (char.gear && char.gear.outfit) || 'gi', sway: 0, dim: true, char,
+  });
   shade(ctx, limbPath(J.shoulderB, J.elbowB, J.handB, 8 * bulk, 6.4 * bulk, 3.8 * bulk),
     backDim(M.skin), opt(J.elbowB.x, J.elbowB.y, 22));
   shade(ctx, capsule(J.handB.x, J.handB.y, J.handB.x + 1, J.handB.y + 1, 4.6 * bulk), backDim(M.glove), opt(J.handB.x, J.handB.y, 8));
@@ -520,53 +525,82 @@ function drawBody(ctx, char, J, f, { flat = null, alpha = 1, noRim = false } = {
     }
   }
 
-  // 胸甲／背心
-  if (gear.chest !== 'bare') {
-    // 胸甲是一片有稜有角的鐵板，不是圓球
-    const cp = smooth([
-      P(41, 9 * W), P(43, 0), P(40, -8 * W), P(29, -12 * W),
-      P(16, -9.5 * W), P(12, 0), P(16, 10 * W), P(29, 13.5 * W),
-    ], 0.3);
-    shade(ctx, cp, mat(M.armor), opt(chest.x, chest.y + 4, 24 * bulk, { ao: 0.32 }));
-    if (!flat) {
-      ctx.save();
-      ctx.clip(cp);
-      // 胸口的隊色塗裝（磨損過的噴漆，不是發光貼紙）
-      ctx.globalAlpha = 0.42;
-      ctx.fillStyle = char.color;
-      ctx.fill(poly([P(44, 3.4 * W), P(44, -3.4 * W), P(12, -4 * W), P(12, 4 * W)]));
-      ctx.globalAlpha = 0.3;
-      ctx.fillStyle = char.accent;
-      ctx.fill(poly([P(26, 18 * W), P(26, -18 * W), P(23, -18 * W), P(23, 18 * W)]));
-      // 甲片分線
-      ctx.globalAlpha = 0.5;
-      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
-      ctx.lineWidth = 1.2;
-      for (const a of [21, 31]) {
-        const p0 = P(a, 18 * W), p1 = P(a, -18 * W);
-        ctx.beginPath();
-        ctx.moveTo(p0.x, p0.y);
-        ctx.lineTo(p1.x, p1.y);
-        ctx.stroke();
+  // ---------- 武術道服 ----------
+  const cloth2 = mat(M.cloth2);
+  const sway = Math.sin(t * 2.4) * 2.2;
+
+  if (outfit !== 'sash') {
+    // 上衣本體：從肩線罩到腰，下襬比腰寬一點（布是垂下來的）
+    const jacket = smooth([
+      P(41, 10.5 * W), P(43, 3 * W),
+      P(37, -1 * W),                       // 前襟的開口往內收
+      P(24, -3 * W), P(9, -4 * W),         // 開襟的邊緣一路往下
+      P(2, -12 * W + sway), P(6, -14.5 * W),
+      P(24, -15 * W), P(37, -13.5 * W),
+      P(43, -6 * W),
+    ], 0.55);
+    shade(ctx, jacket, mat(M.cloth), opt(chest.x, (hip.y + chest.y) / 2, 26 * bulk, { ao: 0.3 }));
+
+    if (outfit === 'gi' || outfit === 'robe') {
+      // 另一側的前襟疊上去：兩片交叉成 V 領，這是道服的招牌
+      const lapel = smooth([
+        P(42, 9 * W), P(38, 2 * W), P(22, 6 * W), P(6, 9.5 * W),
+        P(2, 13 * W - sway), P(10, 14 * W), P(30, 13 * W), P(41, 13.5 * W),
+      ], 0.5);
+      shade(ctx, lapel, cloth2, opt(chest.x, chest.y - 4, 24 * bulk, { ao: 0.25 }));
+      if (!flat) {
+        // 領口的滾邊
+        creaseLine(ctx, lapel, [P(42, 9 * W), P(36, 2.6 * W), P(20, 6.4 * W), P(5, 10 * W)],
+          'rgba(0,0,0,0.34)', 2.4);
       }
-      ctx.restore();
+    }
+    if (!flat) {
+      // 衣褶：斜斜的幾條，布才不是一塊板子
+      creaseLine(ctx, jacket, [P(30, -12 * W), P(20, -6 * W)], 'rgba(0,0,0,0.22)', 2);
+      creaseLine(ctx, jacket, [P(18, -13 * W), P(9, -7 * W)], 'rgba(0,0,0,0.18)', 1.8);
     }
   }
-  // 腰帶
-  shade(ctx, smooth([P(3, 11.4 * W), P(3, -11.4 * W), P(-5, -11.4 * W), P(-5, 11.4 * W)], 0.45),
-    mat(M.strap), opt(hip.x, hip.y, 13, { ao: 0.4 }));
+
+  // 下襬：蓋過髖部往下垂的一圈布（長袍垂得更長）
+  if (outfit === 'gi' || outfit === 'robe') {
+    const drop = outfit === 'robe' ? -40 : -24;
+    // 前後各一片垂下來的衣襬，中間開衩 —— 腿才踢得出去
+    for (const s3 of [1, -1]) {
+      const flap = smooth([
+        P(6, s3 * 12.5 * W), P(-4, s3 * 13.5 * W),
+        P(drop, s3 * (11 * W) + sway * s3), P(drop - 2, s3 * 5 * W + sway * s3),
+        P(-2, s3 * 4 * W), P(6, s3 * 5.5 * W),
+      ], 0.35);
+      shade(ctx, flap, mat(M.cloth), opt(hip.x, hip.y + 12, 22 * bulk, { ao: 0.42 }));
+      if (!flat) creaseLine(ctx, flap, [P(2, s3 * 9 * W), P(drop + 2, s3 * 8 * W)], 'rgba(0,0,0,0.26)', 2);
+    }
+  }
 
   // ---------- 前腿 ----------
-  // 髖 → 膝 → 踝 一條到底：大腿粗、膝蓋收、小腿再放出去一點
-  shade(ctx, limbPath({ x: J.hip.x, y: J.hip.y - 3 }, J.kneeF, J.footF, 9.8 * bulk, 6.4 * bulk, 4.3 * bulk),
-    mat(M.cloth), opt(J.kneeF.x, J.kneeF.y, 30, { ao: 0.28 }));
-  // 護膝
-  shade(ctx, smooth([
-    { x: J.kneeF.x - 4.4 * bulk, y: J.kneeF.y - 5.6 }, { x: J.kneeF.x + 5.6 * bulk, y: J.kneeF.y - 4.6 },
-    { x: J.kneeF.x + 6.2 * bulk, y: J.kneeF.y + 1.6 }, { x: J.kneeF.x + 3.4 * bulk, y: J.kneeF.y + 5.4 },
-    { x: J.kneeF.x - 4.6 * bulk, y: J.kneeF.y + 4.4 },
-  ], 0.35), mat(M.armor), opt(J.kneeF.x, J.kneeF.y, 10, { ao: 0.3 }));
-  drawBoot(ctx, J.footF, mat(M.armor), bulk, opt(J.footF.x, J.footF.y, 12));
+  // 先畫裸露的整條腿，再把寬鬆的道服褲罩上去，褲口束在小腿肚
+  drawLeg(ctx, J.hip, J.kneeF, J.footF, M, { mat, opt, bulk, flat, outfit, sway, dim: false, char });
+
+  // ---------- 腰帶：寬布帶 + 結 + 兩條垂下來的帶尾 ----------
+  const beltMat = {
+    base: char.accent, light: mixColor(char.accent, '#ffffff', 0.32),
+    dark: mixColor(char.accent, '#000000', 0.42), spec: 0.08, rough: 0.9,
+  };
+  shade(ctx, smooth([P(13, 12.8 * W), P(13, -13.2 * W), P(-2, -13.6 * W), P(-2, 13.2 * W)], 0.25),
+    mat(beltMat), opt(hip.x, hip.y + 5, 16, { ao: 0.3 }));
+  if (!flat) {
+    // 結
+    shade(ctx, smooth([P(12, 8.6 * W), P(12, 0.6 * W), P(-1, 0), P(-1, 9.2 * W)], 0.55),
+      beltMat, opt(hip.x, hip.y + 5, 11, { ao: 0.28 }));
+    // 帶尾：跟著呼吸擺
+    for (const k of [0, 1]) {
+      const s0 = 6 * W - k * 5 * W;
+      shade(ctx, smooth([
+        P(2, s0), P(-14 - k * 4, s0 + 2 * W + sway * (k ? -1 : 1)),
+        P(-17 - k * 4, s0 - 1.5 * W + sway * (k ? -1 : 1)), P(2, s0 - 3.4 * W),
+      ], 0.4), beltMat, opt(hip.x - 10, hip.y + 6, 14, { ao: 0.4 }));
+    }
+  }
+
 
   // ---------- 頭 ----------
   drawHead(ctx, char, J, M, { mat, opt, bulk, flat, t });
@@ -585,17 +619,78 @@ function drawBody(ctx, char, J, f, { flat = null, alpha = 1, noRim = false } = {
     shade(ctx, limbPath(J.elbowF, fm, J.handF, 5.3 * bulk, 5.4 * bulk, 3.7 * bulk),
       mat(M.skin), opt(fm.x, fm.y, 14));
   }
-  // 護腕：從手肘下方一路包到手腕，手臂才不會是全身最亮的一塊
-  const fa0 = { x: lerp(J.elbowF.x, J.handF.x, 0.18), y: lerp(J.elbowF.y, J.handF.y, 0.18) };
-  const fa1 = { x: lerp(J.elbowF.x, J.handF.x, 0.86), y: lerp(J.elbowF.y, J.handF.y, 0.86) };
-  shade(ctx, capsule(fa0.x, fa0.y, fa1.x, fa1.y, 5.4 * bulk, 4.2 * bulk), mat(M.strap), opt(fa0.x, fa0.y, 12, { ao: 0.35 }));
-  shade(ctx, capsule(fa0.x, fa0.y, lerp(fa0.x, fa1.x, 0.4), lerp(fa0.y, fa1.y, 0.4), 5.5 * bulk, 5 * bulk), mat(M.armor), opt(fa0.x, fa0.y, 10, { ao: 0.3 }));
+  // 拳帶：白布一圈一圈纏到手腕，武術裝扮的標配
+  const fa0 = { x: lerp(J.elbowF.x, J.handF.x, 0.3), y: lerp(J.elbowF.y, J.handF.y, 0.3) };
+  const fa1 = { x: lerp(J.elbowF.x, J.handF.x, 0.94), y: lerp(J.elbowF.y, J.handF.y, 0.94) };
+  const wrapPath = capsule(fa0.x, fa0.y, fa1.x, fa1.y, 5.2 * bulk, 4.4 * bulk);
+  shade(ctx, wrapPath, mat(M.wrap), opt(fa0.x, fa0.y, 12, { ao: 0.3 }));
+  if (!flat) {
+    // 纏繞的縫：三道斜線就看得出是布條不是護具
+    const wn = { x: -(fa1.y - fa0.y), y: fa1.x - fa0.x };
+    const wl = Math.hypot(wn.x, wn.y) || 1;
+    for (const k of [0.25, 0.5, 0.75]) {
+      const c0 = { x: lerp(fa0.x, fa1.x, k), y: lerp(fa0.y, fa1.y, k) };
+      creaseLine(ctx, wrapPath, [
+        { x: c0.x + (wn.x / wl) * 6 * bulk, y: c0.y + (wn.y / wl) * 6 * bulk },
+        { x: c0.x - (wn.x / wl) * 6 * bulk - (fa1.x - fa0.x) * 0.09, y: c0.y - (wn.y / wl) * 6 * bulk - (fa1.y - fa0.y) * 0.09 },
+      ], 'rgba(90,80,64,0.45)', 1.8);
+    }
+  }
   // 手套
   shade(ctx, capsule(J.handF.x, J.handF.y, J.handF.x + 2, J.handF.y + 2, 5 * bulk), mat(M.glove), opt(J.handF.x, J.handF.y, 8));
 
   // ---------- 武器 ----------
   drawWeapon(ctx, char, J, M, { mat, opt, bulk, flat, t, f });
 
+}
+
+/**
+ * 一條腿：裸露的腿 → 寬鬆的道服褲 → 褲口束帶 → 綁腿 → 布鞋。
+ * 武術裝扮的重點就在褲子：要寬、要垂、褲口要束起來。
+ */
+function drawLeg(ctx, hip, knee, foot, M, { mat, opt, bulk, flat, outfit, sway, dim, char }) {
+  const root = { x: hip.x, y: hip.y - 3 };
+  // 1. 腿本身
+  shade(ctx, limbPath(root, knee, foot, 9.4 * bulk, 6.2 * bulk, 4.2 * bulk),
+    mat(M.skin), opt(knee.x, knee.y, 28, { ao: 0.24 }));
+
+  // 2. 褲子：包到小腿肚，外側比內側寬一點（布會被甩出去）
+  const cuff = {
+    x: knee.x + (foot.x - knee.x) * 0.62,
+    y: knee.y + (foot.y - knee.y) * 0.62,
+  };
+  if (outfit !== 'shorts') {
+    const dx = foot.x - knee.x, dy = foot.y - knee.y;
+    const l = Math.hypot(dx, dy) || 1;
+    const nx = -dy / l, ny = dx / l;
+    const pant = smooth([
+      { x: root.x + 10 * bulk, y: root.y - 2 },
+      { x: knee.x + 9.2 * bulk, y: knee.y - 2 },
+      { x: cuff.x + nx * 7 * bulk + sway * 0.4, y: cuff.y + ny * 7 * bulk },
+      { x: cuff.x + nx * 5 * bulk, y: cuff.y + ny * 5 * bulk },
+      { x: cuff.x - nx * 5 * bulk, y: cuff.y - ny * 5 * bulk },
+      { x: knee.x - 8 * bulk, y: knee.y - 2 },
+      { x: root.x - 9.5 * bulk, y: root.y - 2 },
+    ], 0.32);
+    shade(ctx, pant, mat(M.cloth), opt(knee.x, knee.y, 30, { ao: 0.34 }));
+    if (!flat) {
+      creaseLine(ctx, pant, [
+        { x: root.x + 3 * bulk, y: root.y + 4 },
+        { x: knee.x + 2 * bulk, y: knee.y - 2 },
+        { x: cuff.x, y: cuff.y },
+      ], 'rgba(0,0,0,0.24)', 2.2);
+    }
+    // 褲口的束帶
+    shade(ctx, capsule(
+      cuff.x - nx * 5.6 * bulk, cuff.y - ny * 5.6 * bulk,
+      cuff.x + nx * 6.4 * bulk, cuff.y + ny * 6.4 * bulk, 2.6 * bulk,
+    ), mat(M.strap), opt(cuff.x, cuff.y, 8, { ao: 0.3 }));
+  }
+
+  // 3. 腳踝的綁布 + 布鞋
+  shade(ctx, capsule(cuff.x, cuff.y, foot.x, foot.y - 2, 4.4 * bulk, 4 * bulk),
+    mat(M.wrap), opt(foot.x, foot.y, 10, { ao: 0.3 }));
+  drawBoot(ctx, foot, mat(M.shoe), bulk, opt(foot.x, foot.y, 12));
 }
 
 function drawBoot(ctx, foot, m, bulk, o) {
@@ -614,6 +709,21 @@ function drawBoot(ctx, foot, m, bulk, o) {
 function drawShoulderPad(ctx, char, s, M, { mat, opt, bulk, flat }) {
   const style = (char.gear && char.gear.shoulder) || 'plate';
   if (style === 'none') return;
+  if (style === 'sleeve') {
+    // 道服的短袖：從肩頭垂下來一小截布
+    const w2 = 11 * bulk, h2 = 13 * bulk;
+    const p2 = smooth([
+      { x: s.x - w2 * 0.95, y: s.y - h2 * 0.42 },
+      { x: s.x - w2 * 0.1, y: s.y - h2 * 0.78 },
+      { x: s.x + w2 * 0.9, y: s.y - h2 * 0.4 },
+      { x: s.x + w2 * 1.0, y: s.y + h2 * 0.75 },
+      { x: s.x - w2 * 0.1, y: s.y + h2 * 0.95 },
+      { x: s.x - w2 * 0.95, y: s.y + h2 * 0.6 },
+    ], 0.8);
+    shade(ctx, p2, mat(M.cloth), { ...opt(s.x, s.y, w2 * 1.6), ao: 0.3 });
+    if (!flat) creaseLine(ctx, p2, [{ x: s.x - w2 * 0.6, y: s.y + h2 * 0.7 }, { x: s.x + w2 * 0.8, y: s.y + h2 * 0.6 }], 'rgba(0,0,0,0.28)', 2.2);
+    return;
+  }
   const big = style === 'heavy';
   const w = (big ? 13 : 9.5) * bulk;
   const h = (big ? 11 : 8.5) * bulk;
@@ -1089,88 +1199,192 @@ function drawWeapon(ctx, char, J, M, { mat, opt, bulk, flat, t, f }) {
   const metal = mat(M.metal);
   const dark = mat(M.darkIron);
   const wood = mat(MAT.leather);
+  const wrapM = mat(M.wrap);
+  const brass = mat(MAT.brass);
   let tip = h;
 
+  // --- 武器細節的共用零件 ---
+  /** 纏在握把上的皮繩：一圈一圈的斜紋 */
+  const gripWrap = (d0, d1, w, turns = 5) => {
+    const a = along(d0), b2 = along(d1);
+    const path = capsule(a.x, a.y, b2.x, b2.y, w);
+    shade(ctx, path, wrapM, opt(a.x, a.y, 10, { ao: 0.3 }));
+    if (flat) return;
+    for (let i = 1; i < turns; i++) {
+      const k = i / turns;
+      creaseLine(ctx, path, [
+        along(lerp(d0, d1, k) + 1.4, -w), along(lerp(d0, d1, k) - 1.4, w),
+      ], 'rgba(60,48,34,0.55)', 1.6);
+    }
+  };
+  /** 鉚釘：金屬件固定在一起的痕跡 */
+  const rivets = (ds, off, r2 = 2) => {
+    if (flat) return;
+    for (const d of ds) {
+      const p0 = along(d, off);
+      shade(ctx, capsule(p0.x, p0.y, p0.x + 0.4, p0.y, r2 * bulk), brass, opt(p0.x, p0.y, 4));
+    }
+  };
+  /** 刃面的斜切：沿著刃長畫一條亮線，看起來才是開過鋒的 */
+  const bevel = (path, a, b2, alpha = 0.5) => {
+    if (flat) return;
+    ctx.save();
+    ctx.clip(path);
+    ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b2.x, b2.y);
+    ctx.stroke();
+    ctx.restore();
+  };
+
   switch (spec.kind) {
-    case 'hammer': {          // 破壞錘：長柄 + 巨大方錘頭
+    case 'hammer': {          // 破壞錘：包鐵的木柄 + 帶箍的方錘頭 + 底部的尖釘
       const head = along(66 * bulk);
       const tail = along(-30 * bulk);
       shade(ctx, capsule(tail.x, tail.y, head.x, head.y, 4.6 * bulk, 4.2 * bulk), wood, opt(h.x, h.y, 30, { ao: 0.3 }));
-      // 錘頭：兩塊金屬 + 加強肋
+      gripWrap(-26 * bulk, 4 * bulk, 5.2 * bulk, 6);
+      // 柄尾的配重球
+      shade(ctx, capsule(tail.x, tail.y, tail.x + 0.5, tail.y, 5.4 * bulk), dark, opt(tail.x, tail.y, 8, { ao: 0.3 }));
+      // 錘頭：本體 + 上下兩道箍 + 中央的加強肋
       const hw = 20 * bulk, hh = 14.5 * bulk;
       const block = poly([
         along(52 * bulk, -hh), along(78 * bulk, -hh * 0.88),
         along(78 * bulk, hh * 0.88), along(52 * bulk, hh),
       ]);
       shade(ctx, block, metal, { ...opt(head.x, head.y, hw * 1.4), ao: 0.45 });
+      for (const d of [58, 72]) {
+        shade(ctx, poly([
+          along(d * bulk, -hh * 0.94), along((d + 3) * bulk, -hh * 0.92),
+          along((d + 3) * bulk, hh * 0.92), along(d * bulk, hh * 0.94),
+        ]), dark, opt(head.x, head.y, 14));
+      }
+      rivets([59.5, 73.5], -hh * 0.6, 1.8);
+      rivets([59.5, 73.5], hh * 0.6, 1.8);
+      // 柄與頭的接合套
       shade(ctx, poly([along(48 * bulk, -hh * 0.62), along(53 * bulk, -hh * 0.62), along(53 * bulk, hh * 0.62), along(48 * bulk, hh * 0.62)]), dark, opt(head.x, head.y, 14));
       if (!flat) {
-        // 撞擊面的磨損
+        // 撞擊面的磨亮痕跡與缺角
         ctx.save();
+        ctx.clip(block);
         ctx.globalAlpha = 0.5;
-        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-        ctx.lineWidth = 1.4;
-        const a1 = along(78 * bulk, -hh * 0.7), a2 = along(78 * bulk, hh * 0.7);
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+        ctx.lineWidth = 2.4;
+        const a1 = along(77 * bulk, -hh * 0.66), a2 = along(77 * bulk, hh * 0.66);
         ctx.beginPath();
         ctx.moveTo(a1.x, a1.y);
         ctx.lineTo(a2.x, a2.y);
         ctx.stroke();
+        ctx.globalAlpha = 0.45;
+        ctx.fillStyle = '#12141a';
+        const c1 = along(78 * bulk, -hh * 0.2), c2 = along(72 * bulk, -hh * 0.1), c3 = along(78 * bulk, hh * 0.05);
+        ctx.beginPath();
+        ctx.moveTo(c1.x, c1.y); ctx.lineTo(c2.x, c2.y); ctx.lineTo(c3.x, c3.y);
+        ctx.fill();
         ctx.restore();
       }
       tip = along(80 * bulk);
       break;
     }
-    case 'grapple': {         // 鉤爪：護臂發射器 + 垂下來的鎖鏈與三爪鉤
+    case 'grapple': {         // 鉤爪：護臂發射器（含排氣孔與齒輪）+ 有倒鉤的三爪 + 鎖鏈
       const barrel = along(26 * bulk);
       shade(ctx, capsule(h.x, h.y, barrel.x, barrel.y, 7.5 * bulk, 6.5 * bulk), dark, opt(h.x, h.y, 16, { ao: 0.3 }));
-      shade(ctx, capsule(along(10 * bulk, -6).x, along(10 * bulk, -6).y, along(24 * bulk, -6).x, along(24 * bulk, -6).y, 2.6 * bulk), metal, opt(h.x, h.y, 10));
-      // 爪
+      // 機身上的導軌
+      shade(ctx, capsule(along(8 * bulk, -6).x, along(8 * bulk, -6).y, along(25 * bulk, -6).x, along(25 * bulk, -6).y, 2.6 * bulk), metal, opt(h.x, h.y, 10));
+      // 排氣孔
+      if (!flat) {
+        for (const d of [10, 15, 20]) {
+          const v = along(d * bulk, 4.4 * bulk);
+          shade(ctx, capsule(v.x, v.y, v.x + 0.4, v.y, 1.4 * bulk), mat(M.iron), opt(v.x, v.y, 3));
+        }
+        // 捲線的齒輪
+        const g0 = along(2 * bulk, -2 * bulk);
+        shade(ctx, capsule(g0.x, g0.y, g0.x + 0.4, g0.y, 4.6 * bulk), brass, opt(g0.x, g0.y, 7));
+        for (let i = 0; i < 6; i++) {
+          const a2 = (i / 6) * Math.PI * 2 + t * 1.2;
+          const gx = g0.x + Math.cos(a2) * 5 * bulk, gy = g0.y + Math.sin(a2) * 5 * bulk;
+          shade(ctx, capsule(gx, gy, gx + 0.3, gy, 1.2 * bulk), brass, opt(gx, gy, 2));
+        }
+      }
+      // 三爪：每一爪都有倒鉤
       for (let i = -1; i <= 1; i++) {
         const c0 = along(26 * bulk, i * 4.5 * bulk);
         const c1 = along(40 * bulk, i * 8 * bulk);
-        shade(ctx, capsule(c0.x, c0.y, c1.x, c1.y, 2.8 * bulk, 1.4 * bulk), metal, opt(c0.x, c0.y, 8));
+        const claw = capsule(c0.x, c0.y, c1.x, c1.y, 2.8 * bulk, 1.2 * bulk);
+        shade(ctx, claw, metal, opt(c0.x, c0.y, 8));
+        bevel(claw, c0, c1, 0.45);
+        // 倒鉤
+        shade(ctx, poly([
+          along(35 * bulk, i * 6.6 * bulk), along(33 * bulk, i * 10.4 * bulk),
+          along(37.5 * bulk, i * 7.6 * bulk),
+        ]), metal, opt(c1.x, c1.y, 6));
       }
-      // 鎖鏈垂下
       if (!flat) drawChain(ctx, h, { x: h.x - 26 * bulk, y: h.y + 30 * bulk }, metal, bulk, opt, 6);
       tip = along(42 * bulk);
       break;
     }
-    case 'chainsaw': {        // 鏈鋸：機身 + 導板 + 轉動的鋸齒
+    case 'chainsaw': {        // 鏈鋸：引擎機殼（拉繩、排氣、握把）+ 導板 + 跑動的鏈條
       const body = along(14 * bulk);
       shade(ctx, poly([
-        along(-8 * bulk, -10 * bulk), along(20 * bulk, -9 * bulk),
-        along(20 * bulk, 9 * bulk), along(-8 * bulk, 10 * bulk),
+        along(-10 * bulk, -11 * bulk), along(20 * bulk, -9 * bulk),
+        along(20 * bulk, 9 * bulk), along(-10 * bulk, 11 * bulk),
       ]), dark, opt(body.x, body.y, 20, { ao: 0.4 }));
+      // 上方的護手弓
+      shade(ctx, capsule(along(-4 * bulk, -13 * bulk).x, along(-4 * bulk, -13 * bulk).y,
+        along(16 * bulk, -12 * bulk).x, along(16 * bulk, -12 * bulk).y, 2.4 * bulk), mat(M.iron), opt(body.x, body.y, 12));
+      if (!flat) {
+        // 拉繩的把手
+        const pr = along(-12 * bulk, -2 * bulk);
+        shade(ctx, capsule(pr.x, pr.y, pr.x - 5 * bulk, pr.y + 2, 2 * bulk), wrapM, opt(pr.x, pr.y, 5));
+        // 排氣口
+        for (const d of [0, 5, 10]) {
+          const v = along(d * bulk, 7 * bulk);
+          shade(ctx, capsule(v.x, v.y, v.x + 0.4, v.y, 1.5 * bulk), mat(M.iron), opt(v.x, v.y, 3));
+        }
+        // 火星塞
+        const sp = along(4 * bulk, -8 * bulk);
+        shade(ctx, capsule(sp.x, sp.y, sp.x + 0.4, sp.y, 2 * bulk), brass, opt(sp.x, sp.y, 4));
+      }
+      // 導板
       const bar = poly([
         along(20 * bulk, -7 * bulk), along(70 * bulk, -5 * bulk),
         along(76 * bulk, 0), along(70 * bulk, 5 * bulk), along(20 * bulk, 7 * bulk),
       ]);
       shade(ctx, bar, metal, { ...opt(along(46 * bulk).x, along(46 * bulk).y, 26), ao: 0.3 });
       if (!flat) {
-        // 鋸齒：跑動的三角形
+        // 導板中央的長槽
         ctx.save();
-        ctx.fillStyle = '#d8dee8';
+        ctx.clip(bar);
+        ctx.fillStyle = 'rgba(20,22,28,0.55)';
+        const s0 = along(28 * bulk, -1.6 * bulk), s1 = along(66 * bulk, -1.2 * bulk);
+        ctx.beginPath();
+        ctx.moveTo(s0.x, s0.y);
+        ctx.lineTo(s1.x, s1.y);
+        ctx.lineTo(s1.x + (s1.y - s0.y) * 0.08, s1.y - (s1.x - s0.x) * 0.08);
+        ctx.lineTo(s0.x + (s1.y - s0.y) * 0.08, s0.y - (s1.x - s0.x) * 0.08);
+        ctx.fill();
+        ctx.restore();
+        // 鋸齒：一節鏈條 + 一顆切刀，跟著時間跑
         const phase = (t * 40) % 8;
         for (let d = 22; d < 72; d += 8) {
-          for (const s of [-1, 1]) {
-            const p0 = along((d + phase) * bulk, s * 6.6 * bulk);
-            const p1 = along((d + phase + 4) * bulk, s * 6.6 * bulk);
-            const p2 = along((d + phase + 2) * bulk, s * 10 * bulk);
-            ctx.beginPath();
-            ctx.moveTo(p0.x, p0.y);
-            ctx.lineTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.fill();
+          for (const sd of [-1, 1]) {
+            const p0 = along((d + phase) * bulk, sd * 6.6 * bulk);
+            const p1 = along((d + phase + 4.4) * bulk, sd * 6.6 * bulk);
+            shade(ctx, capsule(p0.x, p0.y, p1.x, p1.y, 1.7 * bulk), mat(M.iron), opt(p0.x, p0.y, 3));
+            const q0 = along((d + phase + 1) * bulk, sd * 7.2 * bulk);
+            const q1 = along((d + phase + 3.4) * bulk, sd * 7.2 * bulk);
+            const q2 = along((d + phase + 2.2) * bulk, sd * 11 * bulk);
+            shade(ctx, poly([q0, q1, q2]), metal, opt(q0.x, q0.y, 4));
           }
         }
-        ctx.restore();
       }
       tip = along(78 * bulk);
       break;
     }
-    case 'chainscythe': {     // 鎖鏈鐮：手上握鏈，鐮刀甩在外面
+    case 'chainscythe': {     // 鎖鏈鐮：手上握鏈 + 甩在外面的鐮刀（刃有血槽與內刃亮線）
       const anchor = along(10 * bulk);
-      const swing = spec.swing || 0;
       const swinging = f && (f.attack || f.lock > 0);
       const sw = swinging ? (f.poseK || 0) * 6.0 - 1.2 : 1.15 + Math.sin(t * 1.4) * 0.12;
       const bladeC = {
@@ -1178,47 +1392,83 @@ function drawWeapon(ctx, char, J, M, { mat, opt, bulk, flat, t, f }) {
         y: h.y + Math.sin(sw) * 48 * bulk - 10,
       };
       if (!flat) drawChain(ctx, anchor, bladeC, metal, bulk, opt, 8);
-      // 鐮刀本體
       const ba = Math.atan2(bladeC.y - h.y, bladeC.x - h.x);
-      const handle = {
-        x: bladeC.x - Math.cos(ba) * 10 * bulk,
-        y: bladeC.y - Math.sin(ba) * 10 * bulk,
-      };
-      shade(ctx, capsule(handle.x, handle.y, bladeC.x, bladeC.y, 3.4 * bulk), wood, opt(bladeC.x, bladeC.y, 12));
+      const at = (d, o = 0) => ({
+        x: bladeC.x + Math.cos(ba) * d - Math.sin(ba) * o,
+        y: bladeC.y + Math.sin(ba) * d + Math.cos(ba) * o,
+      });
+      // 柄：纏繩 + 兩端的金屬箍
+      shade(ctx, capsule(at(-14 * bulk).x, at(-14 * bulk).y, at(6 * bulk).x, at(6 * bulk).y, 3.6 * bulk), wood, opt(bladeC.x, bladeC.y, 14));
+      shade(ctx, capsule(at(-12 * bulk).x, at(-12 * bulk).y, at(2 * bulk).x, at(2 * bulk).y, 4 * bulk), wrapM, opt(bladeC.x, bladeC.y, 12, { ao: 0.3 }));
+      for (const d of [-13, 3]) {
+        const r0 = at(d * bulk);
+        shade(ctx, capsule(r0.x, r0.y, r0.x + 0.4, r0.y, 4.4 * bulk), brass, opt(r0.x, r0.y, 6));
+      }
+      // 鐮刃：外弧厚、內刃薄
       const bl = poly([
-        { x: bladeC.x, y: bladeC.y },
-        { x: bladeC.x + Math.cos(ba - 1.1) * 34 * bulk, y: bladeC.y + Math.sin(ba - 1.1) * 34 * bulk },
-        { x: bladeC.x + Math.cos(ba - 0.2) * 44 * bulk, y: bladeC.y + Math.sin(ba - 0.2) * 44 * bulk },
-        { x: bladeC.x + Math.cos(ba + 0.5) * 12 * bulk, y: bladeC.y + Math.sin(ba + 0.5) * 12 * bulk },
+        at(2 * bulk, 2 * bulk),
+        at(20 * bulk, -22 * bulk), at(38 * bulk, -26 * bulk),
+        at(46 * bulk, -12 * bulk), at(30 * bulk, -4 * bulk), at(10 * bulk, 6 * bulk),
       ]);
       shade(ctx, bl, metal, { ...opt(bladeC.x, bladeC.y, 30), ao: 0.2 });
-      tip = { x: bladeC.x + Math.cos(ba - 0.2) * 44 * bulk, y: bladeC.y + Math.sin(ba - 0.2) * 44 * bulk };
+      bevel(bl, at(10 * bulk, -6 * bulk), at(42 * bulk, -14 * bulk), 0.55);
+      if (!flat) {
+        // 血槽
+        creaseLine(ctx, bl, [at(14 * bulk, -12 * bulk), at(36 * bulk, -18 * bulk)], 'rgba(0,0,0,0.32)', 2.4);
+      }
+      tip = at(46 * bulk, -12 * bulk);
       break;
     }
-    case 'daggers': {         // 雙匕：前後手各一把
+    case 'daggers': {         // 雙匕：護手 + 血槽 + 纏繩握把 + 尾錘
       for (const [hand, elbow, len] of [[J.handF, J.elbowF, 30], [J.handB, J.elbowB, 26]]) {
         const a2 = Math.atan2(hand.y - elbow.y, hand.x - elbow.x);
-        const tipP = { x: hand.x + Math.cos(a2) * len * bulk, y: hand.y + Math.sin(a2) * len * bulk };
-        shade(ctx, bladeShape(hand.x, hand.y, tipP.x, tipP.y, 4.6 * bulk), metal, { ...opt(hand.x, hand.y, 18), ao: 0.2 });
-        shade(ctx, capsule(hand.x, hand.y, hand.x - Math.cos(a2) * 8 * bulk, hand.y - Math.sin(a2) * 8 * bulk, 3 * bulk), dark, opt(hand.x, hand.y, 8));
+        const at = (d, o = 0) => ({
+          x: hand.x + Math.cos(a2) * d - Math.sin(a2) * o,
+          y: hand.y + Math.sin(a2) * d + Math.cos(a2) * o,
+        });
+        const tipP = at(len * bulk);
+        const blade = bladeShape(at(6 * bulk).x, at(6 * bulk).y, tipP.x, tipP.y, 4.6 * bulk);
+        shade(ctx, blade, metal, { ...opt(hand.x, hand.y, 18), ao: 0.2 });
+        bevel(blade, at(8 * bulk, 1 * bulk), at((len - 4) * bulk, 0.6 * bulk), 0.55);
+        // 護手
+        shade(ctx, poly([
+          at(4 * bulk, -5.5 * bulk), at(7 * bulk, -5 * bulk),
+          at(7 * bulk, 5 * bulk), at(4 * bulk, 5.5 * bulk),
+        ]), brass, opt(hand.x, hand.y, 8));
+        // 握把 + 尾錘
+        shade(ctx, capsule(at(-9 * bulk).x, at(-9 * bulk).y, at(3 * bulk).x, at(3 * bulk).y, 3 * bulk), wrapM, opt(hand.x, hand.y, 8, { ao: 0.3 }));
+        const pom = at(-11 * bulk);
+        shade(ctx, capsule(pom.x, pom.y, pom.x + 0.4, pom.y, 3.2 * bulk), brass, opt(pom.x, pom.y, 5));
       }
       tip = along(32 * bulk);
       break;
     }
-    case 'axe': {             // 戰斧：厚柄 + 單邊大斧刃
+    case 'axe': {             // 戰斧：夾住木柄的斧頭（有鉚釘與護條）+ 背面的尖刺 + 纏繩
       const head = along(54 * bulk);
-      shade(ctx, capsule(along(-26 * bulk).x, along(-26 * bulk).y, head.x, head.y, 4.4 * bulk, 4 * bulk), wood, opt(h.x, h.y, 26, { ao: 0.3 }));
+      shade(ctx, capsule(along(-26 * bulk).x, along(-26 * bulk).y, along(74 * bulk).x, along(74 * bulk).y, 4.4 * bulk, 3.6 * bulk), wood, opt(h.x, h.y, 26, { ao: 0.3 }));
+      gripWrap(-22 * bulk, 8 * bulk, 5 * bulk, 6);
+      // 斧刃
       const blade = poly([
-        along(40 * bulk, -4 * bulk), along(48 * bulk, -30 * bulk),
-        along(72 * bulk, -20 * bulk), along(70 * bulk, 6 * bulk),
-        along(50 * bulk, 10 * bulk),
+        along(40 * bulk, -4 * bulk), along(46 * bulk, -26 * bulk),
+        along(62 * bulk, -32 * bulk), along(72 * bulk, -18 * bulk),
+        along(70 * bulk, 4 * bulk), along(50 * bulk, 10 * bulk),
       ]);
       shade(ctx, blade, metal, { ...opt(head.x, head.y, 34), ao: 0.25 });
-      shade(ctx, poly([along(40 * bulk, 2 * bulk), along(52 * bulk, 14 * bulk), along(44 * bulk, 16 * bulk)]), dark, opt(head.x, head.y, 14));
-      tip = along(74 * bulk, -20 * bulk);
+      bevel(blade, along(60 * bulk, -27 * bulk), along(68 * bulk, -2 * bulk), 0.6);
+      if (!flat) creaseLine(ctx, blade, [along(46 * bulk, -8 * bulk), along(58 * bulk, -20 * bulk)], 'rgba(0,0,0,0.3)', 2.4);
+      // 夾住木柄的護條 + 鉚釘
+      shade(ctx, poly([
+        along(38 * bulk, -7 * bulk), along(56 * bulk, -9 * bulk),
+        along(56 * bulk, 9 * bulk), along(38 * bulk, 7 * bulk),
+      ]), dark, opt(head.x, head.y, 16));
+      rivets([42, 52], -5 * bulk, 1.8);
+      rivets([42, 52], 5 * bulk, 1.8);
+      // 背面的尖刺
+      shade(ctx, poly([along(42 * bulk, 6 * bulk), along(56 * bulk, 20 * bulk), along(46 * bulk, 14 * bulk)]), dark, opt(head.x, head.y, 14));
+      tip = along(70 * bulk, -26 * bulk);
       break;
     }
-    case 'shieldmace': {      // 塔盾 + 釘錘（盾在前手、錘在後手）
+    case 'shieldmace': {      // 塔盾（木板 + 鐵框 + 盾心凸起）+ 後手的釘錘
       const c0 = along(16 * bulk);
       const sh = poly([
         along(2 * bulk, -34 * bulk), along(26 * bulk, -30 * bulk),
@@ -1226,83 +1476,169 @@ function drawWeapon(ctx, char, J, M, { mat, opt, bulk, flat, t, f }) {
         along(-4 * bulk, 24 * bulk), along(-6 * bulk, -20 * bulk),
       ]);
       shade(ctx, sh, mat(M.armor), { ...opt(c0.x, c0.y, 40), ao: 0.4 });
-      // 盾面加強條與凸起
       if (!flat) {
-        shade(ctx, capsule(along(6 * bulk, -20 * bulk).x, along(6 * bulk, -20 * bulk).y, along(18 * bulk, 22 * bulk).x, along(18 * bulk, 22 * bulk).y, 4 * bulk), metal, opt(c0.x, c0.y, 20));
-        shade(ctx, capsule(c0.x, c0.y, c0.x + 0.5, c0.y, 7 * bulk), metal, opt(c0.x, c0.y, 12));
+        // 木板的拼縫
+        for (const o of [-20, -8, 6, 20]) {
+          creaseLine(ctx, sh, [along(-8 * bulk, o * bulk), along(32 * bulk, o * bulk)], 'rgba(0,0,0,0.26)', 2);
+        }
+        // 鐵框
+        ctx.save();
+        ctx.clip(sh);
+        ctx.strokeStyle = 'rgba(200,214,238,0.35)';
+        ctx.lineWidth = 4;
+        ctx.stroke(sh);
+        ctx.restore();
+        // 斜的加強條 + 鉚釘
+        shade(ctx, capsule(along(4 * bulk, -26 * bulk).x, along(4 * bulk, -26 * bulk).y,
+          along(20 * bulk, 26 * bulk).x, along(20 * bulk, 26 * bulk).y, 4 * bulk), metal, opt(c0.x, c0.y, 20));
+        rivets([6, 12, 18], -20 * bulk, 1.8);
+        rivets([8, 14, 20], 20 * bulk, 1.8);
+        // 盾心
+        shade(ctx, capsule(c0.x, c0.y, c0.x + 0.5, c0.y, 8 * bulk), metal, opt(c0.x, c0.y, 12, { ao: 0.3 }));
+        shade(ctx, capsule(c0.x, c0.y, c0.x + 0.4, c0.y, 3.4 * bulk), brass, opt(c0.x, c0.y, 6));
       }
-      // 後手的釘錘
+      // 後手的釘錘：柄 + 帶稜的錘頭
       const hb = J.handB, eb = J.elbowB;
       const ab = Math.atan2(hb.y - eb.y, hb.x - eb.x);
       const mtip = { x: hb.x + Math.cos(ab) * 34 * bulk, y: hb.y + Math.sin(ab) * 34 * bulk };
       shade(ctx, capsule(hb.x, hb.y, mtip.x, mtip.y, 3.4 * bulk), wood, opt(hb.x, hb.y, 16));
+      shade(ctx, capsule(hb.x, hb.y, hb.x + Math.cos(ab) * 12 * bulk, hb.y + Math.sin(ab) * 12 * bulk, 3.8 * bulk), wrapM, opt(hb.x, hb.y, 10));
       shade(ctx, capsule(mtip.x, mtip.y, mtip.x + 1, mtip.y + 1, 9 * bulk), dark, opt(mtip.x, mtip.y, 14, { ao: 0.3 }));
+      if (!flat) {
+        // 錘頭的四道稜
+        for (let i = 0; i < 4; i++) {
+          const a3 = ab + (i / 4) * Math.PI * 2;
+          const f0 = { x: mtip.x + Math.cos(a3) * 6 * bulk, y: mtip.y + Math.sin(a3) * 6 * bulk };
+          const f1 = { x: mtip.x + Math.cos(a3) * 12 * bulk, y: mtip.y + Math.sin(a3) * 12 * bulk };
+          shade(ctx, capsule(f0.x, f0.y, f1.x, f1.y, 3 * bulk, 1.2 * bulk), metal, opt(f0.x, f0.y, 5));
+        }
+      }
       tip = along(30 * bulk);
       break;
     }
-    case 'halberd': {         // 長戟：最長的柄 + 矛尖 + 側斧
+    case 'halberd': {         // 長戟：矛尖 + 開了月牙口的側斧 + 背鉤 + 護柄鐵條 + 纏繩
       const tipP = along(112 * bulk);
       const tail = along(-46 * bulk);
       shade(ctx, capsule(tail.x, tail.y, tipP.x, tipP.y, 3.6 * bulk, 3.2 * bulk), wood, opt(h.x, h.y, 50, { ao: 0.25 }));
+      gripWrap(-14 * bulk, 16 * bulk, 4.6 * bulk, 6);
+      // 柄尾的鐵套
+      shade(ctx, capsule(tail.x, tail.y, along(-38 * bulk).x, along(-38 * bulk).y, 4 * bulk), dark, opt(tail.x, tail.y, 8));
+      // 護柄鐵條（langet）
+      for (const o of [-1, 1]) {
+        shade(ctx, capsule(along(70 * bulk, o * 3.6 * bulk).x, along(70 * bulk, o * 3.6 * bulk).y,
+          along(92 * bulk, o * 3.6 * bulk).x, along(92 * bulk, o * 3.6 * bulk).y, 1.6 * bulk), dark, opt(tipP.x, tipP.y, 16));
+      }
+      // 矛尖
+      const spear = poly([
+        along(92 * bulk, -5.5 * bulk), along(104 * bulk, -3 * bulk),
+        { x: tipP.x, y: tipP.y }, along(104 * bulk, 3 * bulk), along(92 * bulk, 5.5 * bulk),
+      ]);
+      shade(ctx, spear, metal, { ...opt(tipP.x, tipP.y, 24), ao: 0.2 });
+      bevel(spear, along(94 * bulk, -1 * bulk), along(109 * bulk, 0), 0.6);
+      // 側斧：刃上開一個月牙口
+      const axeBlade = poly([
+        along(80 * bulk, -4 * bulk), along(84 * bulk, -26 * bulk),
+        along(100 * bulk, -22 * bulk), along(103 * bulk, -12 * bulk),
+        along(94 * bulk, -14 * bulk), along(92 * bulk, -2 * bulk),
+      ]);
+      shade(ctx, axeBlade, metal, opt(along(90 * bulk, -14 * bulk).x, along(90 * bulk, -14 * bulk).y, 20));
+      bevel(axeBlade, along(86 * bulk, -24 * bulk), along(100 * bulk, -20 * bulk), 0.5);
+      // 背面的鉤
       shade(ctx, poly([
-        along(92 * bulk, -5 * bulk), { x: tipP.x, y: tipP.y }, along(92 * bulk, 5 * bulk),
-      ]), metal, { ...opt(tipP.x, tipP.y, 24), ao: 0.2 });
-      shade(ctx, poly([
-        along(80 * bulk, -4 * bulk), along(88 * bulk, -24 * bulk),
-        along(100 * bulk, -18 * bulk), along(92 * bulk, -2 * bulk),
-      ]), metal, opt(along(90 * bulk, -12 * bulk).x, along(90 * bulk, -12 * bulk).y, 20));
+        along(82 * bulk, 4 * bulk), along(94 * bulk, 16 * bulk),
+        along(88 * bulk, 18 * bulk), along(80 * bulk, 8 * bulk),
+      ]), dark, opt(tipP.x, tipP.y, 18));
       tip = tipP;
       break;
     }
-    case 'knuckles': {        // 鐵指虎：厚重護拳 + 四顆指節鐵疙瘩
+    case 'knuckles': {        // 鐵指虎：纏布的拳 + 四個指節環 + 護手背板 + 腕帶
       for (const [hand, elbow, dim] of [[J.handF, J.elbowF, false], [J.handB, J.elbowB, true]]) {
         const a2 = Math.atan2(hand.y - elbow.y, hand.x - elbow.x);
         const back = { x: hand.x - Math.cos(a2) * 8 * bulk, y: hand.y - Math.sin(a2) * 8 * bulk };
         const front = { x: hand.x + Math.cos(a2) * 8 * bulk, y: hand.y + Math.sin(a2) * 8 * bulk };
-        // 拳頭本體（纏了布條的手）
-        shade(ctx, capsule(back.x, back.y, front.x, front.y, 7.6 * bulk, 7 * bulk),
-          dim ? dark : mat(M.strap), opt(hand.x, hand.y, 16, { ao: 0.35 }));
-        // 指節上的鐵疙瘩
+        const mm = dim ? dark : metal;
+        // 拳頭：纏布
+        const fist = capsule(back.x, back.y, front.x, front.y, 7.6 * bulk, 7 * bulk);
+        shade(ctx, fist, dim ? dark : wrapM, opt(hand.x, hand.y, 16, { ao: 0.35 }));
+        if (!flat && !dim) {
+          creaseLine(ctx, fist, [
+            { x: hand.x - Math.sin(a2) * 7 * bulk, y: hand.y + Math.cos(a2) * 7 * bulk },
+            { x: hand.x + Math.sin(a2) * 7 * bulk, y: hand.y - Math.cos(a2) * 7 * bulk },
+          ], 'rgba(80,68,52,0.5)', 1.8);
+        }
+        // 四個指節環
         for (let i = -1.5; i <= 1.5; i++) {
           const k0 = {
             x: front.x - Math.sin(a2) * i * 3.6 * bulk,
             y: front.y + Math.cos(a2) * i * 3.6 * bulk,
           };
-          shade(ctx, capsule(k0.x, k0.y, k0.x + Math.cos(a2) * 2.4 * bulk, k0.y + Math.sin(a2) * 2.4 * bulk, 2.6 * bulk),
-            dim ? dark : metal, opt(k0.x, k0.y, 6, { ao: 0.3 }));
+          const k1 = { x: k0.x + Math.cos(a2) * 2.8 * bulk, y: k0.y + Math.sin(a2) * 2.8 * bulk };
+          shade(ctx, capsule(k0.x, k0.y, k1.x, k1.y, 2.7 * bulk), mm, opt(k0.x, k0.y, 6, { ao: 0.3 }));
+          if (!flat && !dim) bevel(capsule(k0.x, k0.y, k1.x, k1.y, 2.7 * bulk), k0, k1, 0.45);
         }
-        // 護住手背的鐵板
-        shade(ctx, poly([
+        // 護手背板 + 鉚釘
+        const plate = poly([
           { x: back.x - Math.sin(a2) * 6 * bulk, y: back.y + Math.cos(a2) * 6 * bulk },
           { x: front.x - Math.sin(a2) * 5 * bulk, y: front.y + Math.cos(a2) * 5 * bulk },
           { x: front.x - Math.sin(a2) * 1 * bulk, y: front.y + Math.cos(a2) * 1 * bulk },
           { x: back.x - Math.sin(a2) * 2 * bulk, y: back.y + Math.cos(a2) * 2 * bulk },
-        ]), dim ? dark : metal, opt(hand.x, hand.y, 12));
+        ]);
+        shade(ctx, plate, mm, opt(hand.x, hand.y, 12));
+        if (!flat && !dim) {
+          const rv = { x: hand.x - Math.sin(a2) * 3.4 * bulk, y: hand.y + Math.cos(a2) * 3.4 * bulk };
+          shade(ctx, capsule(rv.x, rv.y, rv.x + 0.4, rv.y, 1.5 * bulk), brass, opt(rv.x, rv.y, 3));
+        }
+        // 腕帶
+        const wr = { x: back.x - Math.cos(a2) * 3 * bulk, y: back.y - Math.sin(a2) * 3 * bulk };
+        shade(ctx, capsule(wr.x, wr.y, back.x, back.y, 6.4 * bulk, 6.8 * bulk), dim ? dark : mat(M.strap), opt(wr.x, wr.y, 8, { ao: 0.3 }));
       }
       tip = along(16 * bulk);
       break;
     }
-    case 'crowbar': {         // 撬棍：一根彎折的扁鋼，一端鴨嘴、一端尖爪
+    case 'crowbar': {         // 撬棍：六角斷面的扁鋼、彎折處有稜、一端鴨嘴一端尖爪
       const bend = along(34 * bulk);
       const tipP = along(52 * bulk, 16 * bulk);
       const tail = along(-24 * bulk);
-      // 直段
-      shade(ctx, capsule(tail.x, tail.y, bend.x, bend.y, 4 * bulk, 3.6 * bulk), dark, opt(h.x, h.y, 26, { ao: 0.3 }));
-      // 彎折的那一段
-      shade(ctx, capsule(bend.x, bend.y, tipP.x, tipP.y, 3.6 * bulk, 3 * bulk), dark, opt(bend.x, bend.y, 16, { ao: 0.3 }));
+      const shaft = capsule(tail.x, tail.y, bend.x, bend.y, 4 * bulk, 3.6 * bulk);
+      shade(ctx, shaft, dark, opt(h.x, h.y, 26, { ao: 0.3 }));
+      bevel(shaft, along(-20 * bulk, -1.4 * bulk), along(30 * bulk, -1.2 * bulk), 0.35);
+      const knee = capsule(bend.x, bend.y, tipP.x, tipP.y, 3.6 * bulk, 3 * bulk);
+      shade(ctx, knee, dark, opt(bend.x, bend.y, 16, { ao: 0.3 }));
+      bevel(knee, along(36 * bulk, -1.2 * bulk), along(50 * bulk, 14 * bulk), 0.35);
       // 鴨嘴：末端劈開的扁頭
-      shade(ctx, poly([
-        along(48 * bulk, 12 * bulk), along(60 * bulk, 20 * bulk),
-        along(58 * bulk, 25 * bulk), along(45 * bulk, 17 * bulk),
-      ]), metal, opt(tipP.x, tipP.y, 14));
-      // 尾端的尖爪
-      shade(ctx, poly([
-        along(-22 * bulk, -3 * bulk), along(-34 * bulk, -7 * bulk),
-        along(-33 * bulk, 1 * bulk), along(-22 * bulk, 3 * bulk),
-      ]), metal, opt(tail.x, tail.y, 12));
-      // 握把的防滑纏帶
-      shade(ctx, capsule(along(-6 * bulk).x, along(-6 * bulk).y, along(10 * bulk).x, along(10 * bulk).y, 4.6 * bulk, 4.2 * bulk),
-        mat(M.strap), opt(h.x, h.y, 12, { ao: 0.3 }));
+      const duck = poly([
+        along(48 * bulk, 12 * bulk), along(62 * bulk, 21 * bulk),
+        along(59 * bulk, 26 * bulk), along(45 * bulk, 17 * bulk),
+      ]);
+      shade(ctx, duck, metal, opt(tipP.x, tipP.y, 14));
+      bevel(duck, along(50 * bulk, 15 * bulk), along(60 * bulk, 22 * bulk), 0.55);
+      if (!flat) {
+        // 劈開的縫
+        creaseLine(ctx, duck, [along(54 * bulk, 17 * bulk), along(61 * bulk, 22.5 * bulk)], 'rgba(10,12,16,0.8)', 2.2);
+      }
+      // 尾端的尖爪（拔釘用的 V 形開口）
+      const claw = poly([
+        along(-22 * bulk, -3.2 * bulk), along(-36 * bulk, -8 * bulk),
+        along(-35 * bulk, 1.5 * bulk), along(-22 * bulk, 3.2 * bulk),
+      ]);
+      shade(ctx, claw, metal, opt(tail.x, tail.y, 12));
+      if (!flat) creaseLine(ctx, claw, [along(-28 * bulk, -2 * bulk), along(-35 * bulk, -3 * bulk)], 'rgba(10,12,16,0.8)', 2.4);
+      // 防滑的纏帶
+      gripWrap(-6 * bulk, 12 * bulk, 4.8 * bulk, 5);
+      if (!flat) {
+        // 掉漆露出的鐵色
+        ctx.save();
+        ctx.clip(shaft);
+        ctx.globalAlpha = 0.4;
+        ctx.fillStyle = '#9aa4b4';
+        for (const d of [16, 24]) {
+          const w0 = along(d * bulk, -2 * bulk);
+          ctx.beginPath();
+          ctx.ellipse(w0.x, w0.y, 3 * bulk, 1.4 * bulk, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
       tip = { x: tipP.x, y: tipP.y };
       break;
     }

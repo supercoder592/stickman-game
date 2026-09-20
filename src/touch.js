@@ -103,23 +103,46 @@ export class TouchPad {
     }
   }
 
-  /** 街機風格的圓鈕：深色底 + 彩色外環 + 受光的上緣，按下去會亮 */
+  /**
+   * 街機圓鈕。要在打得亂七八糟的畫面上一眼看清楚，靠三件事：
+   * 不透明的深色底（不是半透明，否則背景會穿過來）、一圈粗的彩色外環、
+   * 以及描了黑邊的粗體字。
+   */
   pad(ctx, x, y, r, color, label, on, size) {
     const p = circlePath(x, y, r);
+    // 底：幾乎不透明，讓按鈕自己成為一塊實心的東西
     const g = ctx.createLinearGradient(x, y - r, x, y + r);
-    g.addColorStop(0, on ? withAlpha(color, 0.85) : 'rgba(30,34,44,0.7)');
-    g.addColorStop(1, on ? withAlpha(color, 0.5) : 'rgba(12,14,20,0.7)');
+    g.addColorStop(0, on ? withAlpha(color, 0.95) : 'rgba(26,30,40,0.94)');
+    g.addColorStop(1, on ? withAlpha(color, 0.66) : 'rgba(9,11,16,0.94)');
     ctx.fillStyle = g;
     ctx.fill(p);
+    // 外圈：先一圈黑把按鈕從背景切開，再疊上粗的彩色環
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    ctx.stroke(p);
+    ctx.lineWidth = 3.5;
+    ctx.strokeStyle = on ? '#ffffff' : color;
+    ctx.stroke(p);
+    // 上緣的受光弧
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, r - 4, Math.PI * 1.15, Math.PI * 1.85);
     ctx.lineWidth = 3;
-    ctx.strokeStyle = 'rgba(0,0,0,0.75)';
-    ctx.stroke(p);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = withAlpha(color, on ? 1 : 0.7);
-    ctx.stroke(p);
-    text(ctx, label, x, y + size * 0.36, {
-      size, color: on ? '#ffffff' : withAlpha(color, 0.92), align: 'center', weight: 800,
-    });
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+    ctx.stroke();
+    ctx.restore();
+    if (!label) return;
+    // 字：先描黑邊再填色，壓在任何背景上都讀得出來
+    ctx.save();
+    ctx.font = `800 ${size}px "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = size * 0.3;
+    ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+    ctx.strokeText(label, x, y + size * 0.36);
+    ctx.fillStyle = on ? '#ffffff' : '#f2f5fa';
+    ctx.fillText(label, x, y + size * 0.36);
+    ctx.restore();
   }
 
   /** 技能鍵的冷卻：從下往上補滿的一層暗色 + 剩餘秒數 */
@@ -139,31 +162,40 @@ export class TouchPad {
     const p = circlePath(b.x, b.y, b.r);
     ctx.save();
     ctx.clip(p);
-    ctx.fillStyle = 'rgba(6,8,14,0.72)';
+    ctx.fillStyle = 'rgba(4,6,11,0.82)';
     ctx.fillRect(b.x - b.r, b.y - b.r + b.r * 2 * (1 - k), b.r * 2, b.r * 2 * k);
     ctx.restore();
-    text(ctx, label, b.x, b.y + 7, { size: 18, color: '#e8edf8', align: 'center', weight: 800 });
+    ctx.save();
+    ctx.font = '800 20px "Noto Sans TC","PingFang TC",system-ui,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+    ctx.strokeText(label, b.x, b.y + 7);
+    ctx.fillStyle = '#ffd76a';
+    ctx.fillText(label, b.x, b.y + 7);
+    ctx.restore();
   }
 
   draw(ctx) {
     if (!this.enabled) return;
     ctx.save();
-    ctx.globalAlpha = 0.78;
+    ctx.globalAlpha = 0.95;
 
     // 搖桿：底座 + 會跟著手指跑的桿頭
     const base = this.pointers.get(this.stickId) || { ox: STICK.x, oy: STICK.y };
     const ring = circlePath(base.ox, base.oy, STICK.r);
-    ctx.fillStyle = 'rgba(12,14,20,0.42)';
+    ctx.fillStyle = 'rgba(10,12,18,0.55)';
     ctx.fill(ring);
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(0,0,0,0.8)';
     ctx.stroke(ring);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(210,222,245,0.6)';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(223,232,245,0.8)';
     ctx.stroke(ring);
     this.pad(ctx, this.stickPos.x, this.stickPos.y, 40, '#dfe8f5', '', this.stickId !== null, 1);
     // 左右的提示箭頭
-    ctx.fillStyle = 'rgba(223,232,245,0.45)';
+    ctx.fillStyle = 'rgba(223,232,245,0.7)';
     for (const s of [-1, 1]) {
       ctx.beginPath();
       ctx.moveTo(base.ox + s * (STICK.r - 12), base.oy);
@@ -174,12 +206,12 @@ export class TouchPad {
     }
 
     for (const b of BUTTONS) {
-      this.pad(ctx, b.x, b.y, b.r, b.color, b.label, this.pressed.has(b.id), b.r > 50 ? 26 : 20);
+      this.pad(ctx, b.x, b.y, b.r, b.color, b.label, this.pressed.has(b.id), b.r > 50 ? 30 : 24);
       if (b.slot !== undefined) this.cooldown(ctx, b);
     }
 
     // 暫停／離開
-    this.pad(ctx, PAUSE.x, PAUSE.y, PAUSE.r, '#b9c4dc', '‖', false, 22);
+    this.pad(ctx, PAUSE.x, PAUSE.y, PAUSE.r, '#dfe8f5', '‖', false, 24);
     ctx.restore();
   }
 }
