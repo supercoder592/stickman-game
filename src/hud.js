@@ -2,7 +2,7 @@
 
 import { panel, platePath, stencil, text, measure, neonStroke, circlePath, polyPath } from './gfx.js';
 import { WORLD } from './render.js';
-import { clamp, withAlpha, lerp } from './util.js';
+import { clamp, withAlpha, lerp, isTouch } from './util.js';
 import { MAX_METER } from './combat.js';
 import { WINS_NEEDED } from './battle.js';
 
@@ -26,8 +26,9 @@ export function drawHud(ctx, battle, opts = {}) {
 
   drawTimer(ctx, battle);
 
-  // 本機玩家的技能格（雙人同機時兩邊都畫）
-  localSides.forEach((side, idx) => {
+  // 本機玩家的技能格（雙人同機時兩邊都畫）。
+  // 手機上冷卻已經畫在觸控鍵上了，底下這排就不重複佔位置。
+  if (!isTouch()) localSides.forEach((side, idx) => {
     const f = battle.fighters[side];
     if (!f) return;
     const x = localSides.length > 1 ? (side === 0 ? 24 : VIEW - 24 - 258) : 24;

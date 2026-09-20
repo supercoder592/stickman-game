@@ -59,7 +59,9 @@ class Game {
 
   // ---------------------------------------------------------------- 版面
   resize() {
-    const pad = 8;
+    // 手機用滿整個可視範圍（外框留給 CSS 的 safe-area），桌機留一點邊
+    const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    const pad = coarse ? 0 : 8;
     const sw = window.innerWidth - pad * 2;
     const sh = window.innerHeight - pad * 2;
     const scale = Math.min(sw / VIEW, sh / WORLD.h);
@@ -258,6 +260,13 @@ class BattleScene {
     }
     this.localSides = mode === 'local' ? [0, 1] : (mode === 'net' ? [netRole === 'host' ? 0 : 1] : [0]);
     game.touch.setSide(this.localSides[0]);
+    game.touch.watch(this.battle.fighters[this.localSides[0]]);
+    // 手機沒有 Esc：左上角的暫停鍵走同一條路
+    game.touch.onPause = () => {
+      if (this.ended) return;
+      if (this.mode === 'net') this.game.leaveNet();
+      else this.game.goto('title');
+    };
   }
 
   // ---------------------------------------------------------------- 更新
@@ -325,6 +334,11 @@ class BattleScene {
       this.ended = true;
       this.game.goto('result', { winner: m.winner, battle: this.battle, mode: this.mode });
     }
+  }
+
+  onExit() {
+    this.game.touch.onPause = null;
+    this.game.touch.watch(null);
   }
 
   onMatchEnd(winner) {

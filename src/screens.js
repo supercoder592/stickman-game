@@ -7,7 +7,7 @@ import { ROSTER, IDS, getChar, statRatio, randomId } from './characters.js';
 import { drawArena, drawPortrait, WORLD } from './render.js';
 import { panel, stencil, text, measure, neonStroke, glowFill, circlePath, ngonPath, polyPath } from './gfx.js';
 import { menuNav, isEdge, anyEdge, drainTyped } from './input.js';
-import { clamp, withAlpha, lerp } from './util.js';
+import { clamp, withAlpha, lerp, isTouch } from './util.js';
 import { Net } from './net.js';
 
 /** 畫面寬度（世界比畫面寬，選單與 HUD 都用畫面座標） */
@@ -136,7 +136,7 @@ export class TitleScreen {
       text(ctx, c.name, x, stripY + 30, { size: 14, color: c.color, align: 'center' });
     });
 
-    text(ctx, '↑↓ 選擇　Enter 確定　M 靜音　H 說明', cx, 700, {
+    text(ctx, isTouch() ? '點一下選單開始　左上角可以靜音' : '↑↓ 選擇　Enter 確定　M 靜音　H 說明', cx, 700, {
       size: 14, color: '#6f7aa3', align: 'center',
     });
     this.taps.commit();
@@ -319,9 +319,11 @@ export class SelectScreen {
       : this.mode === 'local' ? (this.phase === 0 ? '玩家 1 選擇角色' : '玩家 2 選擇角色')
         : (this.phase === 0 ? '選擇你的角色' : '選擇對手');
     text(ctx, title, 60, 60, { size: 30, color: '#e8edf8', letter: 2 });
-    const hint = this.mode === 'net'
-      ? '↑↓←→ 選擇　Enter 準備／取消　Esc 離開房間'
-      : '↑↓←→ 選擇　Enter 確定　Esc 返回';
+    const hint = isTouch()
+      ? (this.mode === 'net' ? '點角色卡選擇　再點一次＝準備' : '點角色卡選擇　再點一次＝確定')
+      : (this.mode === 'net'
+        ? '↑↓←→ 選擇　Enter 準備／取消　Esc 離開房間'
+        : '↑↓←→ 選擇　Enter 確定　Esc 返回');
     text(ctx, hint, 60, 86, { size: 14, color: '#8a93c0' });
 
     if (this.mode === 'net') {
@@ -583,7 +585,7 @@ export class LobbyScreen {
     if (this.status) {
       text(ctx, this.status, cx, 646, { size: 17, color: '#ffd24d', align: 'center' });
     }
-    text(ctx, '數字鍵輸入房號　↑↓ 切換欄位　Enter 連線　Esc 返回', cx, 676, {
+    text(ctx, isTouch() ? '點數字鍵輸入房號　再點「連線」' : '數字鍵輸入房號　↑↓ 切換欄位　Enter 連線　Esc 返回', cx, 676, {
       size: 14, color: '#6f7aa3', align: 'center',
     });
 

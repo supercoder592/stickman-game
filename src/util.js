@@ -53,3 +53,7 @@ export function mixHex(h1, h2, t) {
   const ch = (sh) => Math.round(lerp((a >> sh) & 255, (b >> sh) & 255, t));
   return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
 }
+
+/** 這台裝置是不是用手指操作的（手機／平板） */
+export const isTouch = () => typeof window !== 'undefined'
+  && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;

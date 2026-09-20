@@ -2,7 +2,11 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#05060f">
 <title>STEEL CLASH 鋼鐵亂鬥</title>
 <!-- 內嵌的霓虹六角形圖示，免得瀏覽器去要一個不存在的 favicon -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2305060f'/%3E%3Cpath d='M16 4l10 6v12l-10 6-10-6V10z' fill='none' stroke='%237ef1ff' stroke-width='3'/%3E%3Cpath d='M16 11l5 3v6l-5 3-5-3v-6z' fill='%23ff5ec4'/%3E%3C/svg%3E">
@@ -17,6 +21,9 @@
     margin: 0; padding: 0; height: 100%;
     background: var(--bg);
     overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+    user-select: none; -webkit-user-select: none;
     /* 中文介面靠系統字型，不下載任何字檔 —— 開啟即玩 */
     font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei",
       "Hiragino Sans", "Heiti TC", system-ui, sans-serif;
@@ -27,6 +34,8 @@
   #stage {
     position: fixed; inset: 0;
     display: flex; align-items: center; justify-content: center;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+             env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
   /* 畫布用 CSS 等比放大，邏輯解析度固定 1280×720 */
   canvas {
@@ -39,9 +48,21 @@
   #veil {
     position: fixed; inset: 0; pointer-events: none;
     background:
-      repeating-linear-gradient(0deg, rgba(0,0,0,.20) 0 1px, rgba(0,0,0,0) 1px 3px),
-      radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,.65) 100%);
+      repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0 1px, rgba(0,0,0,0) 1px 3px),
+      radial-gradient(ellipse at center, rgba(0,0,0,0) 62%, rgba(0,0,0,.45) 100%);
     mix-blend-mode: multiply;
+  }
+  /* 手機直向：畫面會變成一條很窄的橫帶，直接請玩家轉橫 */
+  #rotate {
+    position: fixed; inset: 0; z-index: 8; display: none;
+    flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+    background: var(--bg); text-align: center; padding: 32px;
+  }
+  #rotate svg { width: 92px; height: 92px; }
+  #rotate strong { font-size: 20px; letter-spacing: .12em; color: #e8edf8; }
+  #rotate span { font-size: 14px; color: #8a93c0; line-height: 1.8; }
+  @media (orientation: portrait) and (pointer: coarse) {
+    #rotate { display: flex; }
   }
   #boot {
     position: fixed; inset: 0; display: flex; flex-direction: column;
@@ -59,6 +80,15 @@
 <body>
 <div id="stage"><canvas id="game" width="1280" height="720"></canvas></div>
 <div id="veil"></div>
+<div id="rotate">
+  <svg viewBox="0 0 64 64" fill="none" stroke="#c9541f" stroke-width="3" stroke-linejoin="round">
+    <rect x="20" y="6" width="24" height="40" rx="4"/>
+    <path d="M12 40a20 20 0 0 0 20 16" stroke="#8a93c0"/>
+    <path d="M6 34l6 6 6-6" stroke="#8a93c0"/>
+  </svg>
+  <strong>請把手機轉成橫向</strong>
+  <span>這是一款街機格鬥遊戲，<br>橫著拿才看得到整個場地。</span>
+</div>
 <div id="boot">
   <h1>STEEL CLASH</h1>
   <p>載入中…</p>
