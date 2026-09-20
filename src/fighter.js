@@ -66,6 +66,7 @@ export class Fighter {
     this.slow = 0; this.slowMul = 1;          // 腿傷：移速下降
     this.bleed = 0; this.bleedTime = 0;       // 流血，可疊
     this.marked = 0;                          // 被鉤索標記的剩餘時間
+    this.lastTarget = null;                   // 連打被動：上一個打到的人
     this.haste = 0;
 
     this.cds = [0, 0];
@@ -390,6 +391,9 @@ export class Fighter {
       const d = Math.abs(target.x - this.x);
       dmg *= 1 + clamp(d / 520, 0, 1) * 0.2;
     }
+    if (p === '連打' && this.comboCount > 0 && this.lastTarget === target) {
+      dmg *= 1 + Math.min(this.comboCount, 4) * 0.08;
+    }
     if (p === '近身壓制') {
       const d = Math.abs(target.x - this.x);
       dmg *= 1 + (1 - clamp(d / 260, 0, 1)) * 0.25;
@@ -400,6 +404,7 @@ export class Fighter {
 
     const landed = target.receiveHit(this, hit);
     if (landed) {
+      this.lastTarget = target;
       this.meter = Math.min(MAX_METER, this.meter + dmg * 0.9);
       this.dmgDealt += dmg;
       this.comboCount++;

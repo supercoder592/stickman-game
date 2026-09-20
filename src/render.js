@@ -11,7 +11,7 @@ import {
   MAT, LIGHT, RIM, tint, mixColor, capsule, poly, smooth, ovalPath, limbPath, bladeShape,
   shade, shadeLimb, creaseLine, groundShadow, puff, bloom, grainPattern,
 } from './material.js';
-import { poseFor } from './rig.js';
+import { poseFor, blendRig } from './rig.js';
 import { withAlpha, lerp, clamp, makeRng, rand } from './util.js';
 import { text } from './gfx.js';
 
@@ -431,7 +431,14 @@ function materials(char) {
 export function drawFighter(ctx, f, opts = {}) {
   const { flat = null, alpha = 1, shadow = true, reflection = false, onlyReflection = false } = opts;
   const char = f.char;
-  const J = poseFor(f.pose, f.poseK, f.phase);
+  let J = poseFor(f.pose, f.poseK, f.phase);
+  // 動作之間做內插，切換時才不會「啪」地跳一下。
+  // 受擊要的是衝擊感，所以直接切；殘影／倒影不需要自己的狀態，也直接用。
+  if (!flat && !onlyReflection && f.pose !== undefined) {
+    const hard = f.pose === 'hurt' || f.pose === 'ko';
+    J = f._rig && !hard ? blendRig(f._rig, J, 0.42) : J;
+    f._rig = J;
+  }
   const scale = (char.build.scale || 1) * 1.12;
 
   if (shadow && !flat) {
@@ -591,13 +598,16 @@ function drawBody(ctx, char, J, f, { flat = null, alpha = 1, noRim = false } = {
     // 結
     shade(ctx, smooth([P(12, 8.6 * W), P(12, 0.6 * W), P(-1, 0), P(-1, 9.2 * W)], 0.55),
       beltMat, opt(hip.x, hip.y + 5, 11, { ao: 0.28 }));
-    // 帶尾：跟著呼吸擺
+    // 帶尾：從結垂下來的兩條布，用直邊的四邊形才不會糊成一團
     for (const k of [0, 1]) {
-      const s0 = 6 * W - k * 5 * W;
-      shade(ctx, smooth([
-        P(2, s0), P(-14 - k * 4, s0 + 2 * W + sway * (k ? -1 : 1)),
-        P(-17 - k * 4, s0 - 1.5 * W + sway * (k ? -1 : 1)), P(2, s0 - 3.4 * W),
-      ], 0.4), beltMat, opt(hip.x - 10, hip.y + 6, 14, { ao: 0.4 }));
+      const s0 = 4.5 * W - k * 6 * W;
+      const dz = -24 - k * 6;
+      const wob = sway * (k ? -1 : 1);
+      const c0 = P(dz * 0.5, s0 + 0.5 * W);
+      shade(ctx, poly([
+        P(0, s0 + 2.4 * W), P(0, s0 - 1.8 * W),
+        P(dz, s0 - 1.4 * W + wob), P(dz, s0 + 2.8 * W + wob),
+      ]), beltMat, { cx: c0.x, cy: c0.y, r: 30, alpha });
     }
   }
 
@@ -1175,7 +1185,7 @@ function drawBackGear(ctx, char, J, M, { mat, opt, t, bulk, flat }) {
       }
       break;
     }
-    case 'shieldback':    // 盾牌掛在背後（壁壘拿在手上時不畫）
+    case 'shieldback':    // 保留的掛點：背後掛東西（目前沒有角色用）
     default:
       break;
   }
@@ -1468,52 +1478,44 @@ function drawWeapon(ctx, char, J, M, { mat, opt, bulk, flat, t, f }) {
       tip = along(70 * bulk, -26 * bulk);
       break;
     }
-    case 'shieldmace': {      // 塔盾（木板 + 鐵框 + 盾心凸起）+ 後手的釘錘
-      const c0 = along(16 * bulk);
-      const sh = poly([
-        along(2 * bulk, -34 * bulk), along(26 * bulk, -30 * bulk),
-        along(30 * bulk, 18 * bulk), along(12 * bulk, 36 * bulk),
-        along(-4 * bulk, 24 * bulk), along(-6 * bulk, -20 * bulk),
-      ]);
-      shade(ctx, sh, mat(M.armor), { ...opt(c0.x, c0.y, 40), ao: 0.4 });
-      if (!flat) {
-        // 木板的拼縫
-        for (const o of [-20, -8, 6, 20]) {
-          creaseLine(ctx, sh, [along(-8 * bulk, o * bulk), along(32 * bulk, o * bulk)], 'rgba(0,0,0,0.26)', 2);
+    case 'tristaff': {        // 三節棍：三段包鐵的木棍，用短鏈串起來，後兩節會甩
+      // 出招時甩開，平時把後兩節收在身側
+      const swinging = f && (f.attack || f.lock > 0);
+      const k = f ? (f.poseK || 0) : 0;
+      const a1 = ang + (swinging ? -1.1 + k * 4.2 : -2.0 + Math.sin(t * 1.6) * 0.12);
+      const a2 = a1 + (swinging ? 0.7 + k * 2.4 : 1.5 + Math.sin(t * 1.9 + 1) * 0.14);
+      const segLen = 30 * bulk;
+
+      /** 一節棍：木身 + 兩端的鐵箍 */
+      const segment = (from, angle, len) => {
+        const to = { x: from.x + Math.cos(angle) * len, y: from.y + Math.sin(angle) * len };
+        shade(ctx, capsule(from.x, from.y, to.x, to.y, 3.8 * bulk, 3.4 * bulk), wood,
+          opt(from.x, from.y, 16, { ao: 0.25 }));
+        for (const q of [from, to]) {
+          shade(ctx, capsule(q.x, q.y, q.x + 0.4, q.y, 4.4 * bulk), brass, opt(q.x, q.y, 6));
         }
-        // 鐵框
-        ctx.save();
-        ctx.clip(sh);
-        ctx.strokeStyle = 'rgba(200,214,238,0.35)';
-        ctx.lineWidth = 4;
-        ctx.stroke(sh);
-        ctx.restore();
-        // 斜的加強條 + 鉚釘
-        shade(ctx, capsule(along(4 * bulk, -26 * bulk).x, along(4 * bulk, -26 * bulk).y,
-          along(20 * bulk, 26 * bulk).x, along(20 * bulk, 26 * bulk).y, 4 * bulk), metal, opt(c0.x, c0.y, 20));
-        rivets([6, 12, 18], -20 * bulk, 1.8);
-        rivets([8, 14, 20], 20 * bulk, 1.8);
-        // 盾心
-        shade(ctx, capsule(c0.x, c0.y, c0.x + 0.5, c0.y, 8 * bulk), metal, opt(c0.x, c0.y, 12, { ao: 0.3 }));
-        shade(ctx, capsule(c0.x, c0.y, c0.x + 0.4, c0.y, 3.4 * bulk), brass, opt(c0.x, c0.y, 6));
-      }
-      // 後手的釘錘：柄 + 帶稜的錘頭
-      const hb = J.handB, eb = J.elbowB;
-      const ab = Math.atan2(hb.y - eb.y, hb.x - eb.x);
-      const mtip = { x: hb.x + Math.cos(ab) * 34 * bulk, y: hb.y + Math.sin(ab) * 34 * bulk };
-      shade(ctx, capsule(hb.x, hb.y, mtip.x, mtip.y, 3.4 * bulk), wood, opt(hb.x, hb.y, 16));
-      shade(ctx, capsule(hb.x, hb.y, hb.x + Math.cos(ab) * 12 * bulk, hb.y + Math.sin(ab) * 12 * bulk, 3.8 * bulk), wrapM, opt(hb.x, hb.y, 10));
-      shade(ctx, capsule(mtip.x, mtip.y, mtip.x + 1, mtip.y + 1, 9 * bulk), dark, opt(mtip.x, mtip.y, 14, { ao: 0.3 }));
-      if (!flat) {
-        // 錘頭的四道稜
-        for (let i = 0; i < 4; i++) {
-          const a3 = ab + (i / 4) * Math.PI * 2;
-          const f0 = { x: mtip.x + Math.cos(a3) * 6 * bulk, y: mtip.y + Math.sin(a3) * 6 * bulk };
-          const f1 = { x: mtip.x + Math.cos(a3) * 12 * bulk, y: mtip.y + Math.sin(a3) * 12 * bulk };
-          shade(ctx, capsule(f0.x, f0.y, f1.x, f1.y, 3 * bulk, 1.2 * bulk), metal, opt(f0.x, f0.y, 5));
+        if (!flat) {
+          // 木紋
+          creaseLine(ctx, capsule(from.x, from.y, to.x, to.y, 3.8 * bulk), [
+            { x: lerp(from.x, to.x, 0.22), y: lerp(from.y, to.y, 0.22) - 1 },
+            { x: lerp(from.x, to.x, 0.78), y: lerp(from.y, to.y, 0.78) - 1 },
+          ], 'rgba(40,26,14,0.4)', 1.6);
         }
-      }
-      tip = along(30 * bulk);
+        return to;
+      };
+
+      // 第一節握在手上，握把纏繩
+      const p1 = { x: h.x - Math.cos(ang) * 10 * bulk, y: h.y - Math.sin(ang) * 10 * bulk };
+      const p2 = segment(p1, ang, segLen);
+      gripWrap(-8 * bulk, 8 * bulk, 4.6 * bulk, 5);
+      // 兩段連接鏈
+      const p3 = { x: p2.x + Math.cos(a1) * 7 * bulk, y: p2.y + Math.sin(a1) * 7 * bulk };
+      if (!flat) drawChain(ctx, p2, p3, metal, bulk, opt, 3);
+      const p4 = segment(p3, a1, segLen);
+      const p5 = { x: p4.x + Math.cos(a2) * 7 * bulk, y: p4.y + Math.sin(a2) * 7 * bulk };
+      if (!flat) drawChain(ctx, p4, p5, metal, bulk, opt, 3);
+      const p6 = segment(p5, a2, segLen);
+      tip = p6;
       break;
     }
     case 'halberd': {         // 長戟：矛尖 + 開了月牙口的側斧 + 背鉤 + 護柄鐵條 + 纏繩
@@ -1673,16 +1675,16 @@ function drawChain(ctx, a, b, m, bulk, opt, links = 7) {
 }
 
 // ------------------------------------------------------------------ 選單用
-export function drawPortrait(ctx, char, x, y, scale, t, pose = 'idle') {
+export function drawPortrait(ctx, char, x, y, scale, t, pose = 'idle', poseK = 0.35) {
   const fake = {
-    char, x: 0, y: 0, facing: 1, pose, poseK: 0.35, phase: t * 2.4,
+    char, x: 0, y: 0, facing: 1, pose, poseK, phase: t * 2.4,
     animTime: t, hitFlash: 0,
   };
   ctx.save();
   ctx.translate(x, y);
   const s = scale * (char.build.scale || 1) * 1.12;
   ctx.scale(s, s);
-  drawBody(ctx, char, poseFor(pose, 0.35, t * 2.4), fake, {});
+  drawBody(ctx, char, poseFor(pose, poseK, t * 2.4), fake, {});
   ctx.restore();
 }
 

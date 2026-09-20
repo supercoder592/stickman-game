@@ -1,7 +1,7 @@
 // 十位鬥士 —— 每個人由「一把武器」定義。
 //
 // 辨識度的三層：
-//   1. 武器（weapon.kind）：破壞錘、鉤爪、鏈鋸、鎖鏈鐮、雙匕、戰斧、塔盾釘錘、長戟、鐵指虎、撬棍
+//   1. 武器（weapon.kind）：破壞錘、鉤爪、鏈鋸、鎖鏈鐮、雙匕、戰斧、三節棍、長戟、鐵指虎、撬棍
 //      —— 剪影完全不同，遠遠一眼就知道誰在場上
 //   2. 裝備（gear）：焊工面罩、防毒面具、兜帽、鋼盔、護目鏡、角盔、戰術面罩 + 背後的工具腰帶／鎖鏈盤／斗篷／刀鞘
 //   3. 數值與招式：重的真的重、遠的真的遠
@@ -180,32 +180,31 @@ export const ROSTER = [
     },
   },
   {
-    id: 'bulwark',
-    name: '壁壘', en: 'BULWARK', title: '塔盾釘錘',
+    id: 'flail',
+    name: '連棍', en: 'FLAIL', title: '三節棍',
     color: '#ffc233', accent: '#9fd8ff',
-    tagline: '推不動、繞不過、打不穿',
-    stats: { hp: 132, speed: 242, jump: 780, weight: 1.34, atk: 0.98, def: 0.78, dash: 0.8 },
-    build: { scale: 1.14, bulk: 1.26, headScale: 1.0 },
-    gear: { head: 'helmet', hair: 'short', shoulder: 'heavy', back: 'none', chest: 'bare', outfit: 'gi' },
-    palette: { armor: '#b08a22', cloth: '#4a5262', hair: '#3a2e22', skin: '#d6a274', armorMat: 'iron', metalMat: 'steel' },
-    weapon: { kind: 'shieldmace', reach: 0.98, hold: 0.55 },
-    passive: { name: '鋼體', desc: '受到的傷害永久降低 20%，擊退距離減少 40%。' },
+    tagline: '第一棍只是問路，後面才是要命的',
+    stats: { hp: 104, speed: 302, jump: 880, weight: 1.0, atk: 0.98, def: 1.0, dash: 1.06 },
+    build: { scale: 1.02, bulk: 1.0, headScale: 1.0 },
+    gear: { head: 'none', hair: 'ponytail', shoulder: 'sleeve', back: 'none', chest: 'bare', outfit: 'gi' },
+    palette: { armor: '#b08a22', cloth: '#c8a232', hair: '#241c16', skin: '#d6a274', armorMat: 'iron', metalMat: 'steel' },
+    weapon: { kind: 'tristaff', reach: 1.12, hold: -0.6 },
+    passive: { name: '連打', desc: '連續命中同一個人時，每一段傷害再 +8%（最多 +32%）。' },
     skills: [
       {
-        name: '盾牌衝撞', desc: '扛著盾全程霸體往前撞，撞到就把人推著跑。',
-        cd: 4.0, kind: 'dashStrike',
-        params: { dist: 330, dur: 0.34, dmg: 17, kbx: 420, kby: -180, armor: 0.55, carry: true },
+        name: '棍花', desc: '棍子在身前繞成一片，擋下大半傷害，還會把靠太近的人彈開。',
+        cd: 7.0, kind: 'ward',
+        params: { dur: 2.6, dr: 0.7, armor: 2.6, push: 240, radius: 120 },
       },
       {
-        name: '鐵壁', desc: '架起塔盾：減傷 75%、全程霸體。',
-        cd: 8.0, kind: 'ward',
-        params: { dur: 3.2, dr: 0.75, armor: 3.2, push: 220, radius: 110 },
+        name: '橫掃', desc: '一棍橫著掃過去，範圍比看起來還寬。',
+        cd: 3.4, kind: 'sweep',
+        params: { dmg: 16, kbx: 380, kby: -200, range: 190, arc: 1.1 },
       },
     ],
     ult: {
-      name: '盾擊崩地', desc: '盾牌砸地引發環形衝擊，再一記釘錘收尾。',
-      kind: 'slam',
-      params: { radius: 300, dmg: 36, kbx: 520, kby: -520, quake: 220, debris: 2, ring: true },
+      name: '百連棍', desc: '棍影連成一片，從頭打到尾。',
+      kind: 'flurry', params: { hits: 14, dmg: 4.2, interval: 0.06, finishKb: 500 },
     },
   },
   {
