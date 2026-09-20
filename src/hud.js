@@ -161,11 +161,10 @@ function drawFighterBar(ctx, f, side, ratio, ghostRatio, battle, t) {
 
   // 狀態圖示
   const chips = [];
-  if (f.burn > 0) chips.push(['灼燒', '#ff7a3c']);
-  if (f.freeze > 0) chips.push(['凍結', '#9be8ff']);
-  if (f.shockTime > 0) chips.push(['麻痺', '#fff27a']);
-  if (f.poison > 0) chips.push([`毒 ${f.poison}`, '#b46bff']);
-  if (f.slow > 0) chips.push(['減速', '#9fb4ff']);
+  if (f.bleed > 0) chips.push([`流血 ${f.bleed}`, '#d1342f']);
+  if (f.stagger > 0) chips.push(['暈眩', '#e8d27a']);
+  if (f.slow > 0) chips.push(['腿傷', '#9fb4ff']);
+  if (f.marked > 0) chips.push(['標記', '#38e1b0']);
   if (f.dr > 0 && f.drTime > 0) chips.push(['護盾', '#7ef1ff']);
   chips.slice(0, 4).forEach((chip, i) => {
     const w = 58;

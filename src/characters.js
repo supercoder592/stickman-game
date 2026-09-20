@@ -1,9 +1,9 @@
 // 十位鬥士 —— 每個人由「一把武器」定義。
 //
 // 辨識度的三層：
-//   1. 武器（weapon.kind）：破壞錘、鉤爪、鏈鋸、鎖鏈鐮、雙匕、戰斧、塔盾釘錘、長戟、火焰拳套、電擊棍
+//   1. 武器（weapon.kind）：破壞錘、鉤爪、鏈鋸、鎖鏈鐮、雙匕、戰斧、塔盾釘錘、長戟、鐵指虎、撬棍
 //      —— 剪影完全不同，遠遠一眼就知道誰在場上
-//   2. 裝備（gear）：焊工面罩、防毒面具、兜帽、鋼盔、護目鏡、角盔、戰術面罩 + 背後的燃料罐／電池／鎖鏈盤／斗篷
+//   2. 裝備（gear）：焊工面罩、防毒面具、兜帽、鋼盔、護目鏡、角盔、戰術面罩 + 背後的工具腰帶／鎖鏈盤／斗篷／刀鞘
 //   3. 數值與招式：重的真的重、遠的真的遠
 //
 // 招式的 kind 對應 skills.js 的元件，look 的零件名對應 render.js 的畫法。
@@ -53,7 +53,7 @@ export const ROSTER = [
       {
         name: '鉤索擒拿', desc: '射出抓鉤，命中就把對手整個拉到面前。',
         cd: 3.6, kind: 'grapple',
-        params: { range: 520, speed: 1250, dmg: 10, pull: 1, stun: 0.3 },
+        params: { range: 520, speed: 1250, dmg: 10, pull: 1, stagger: 0.3 },
       },
       {
         name: '飛索突進', desc: '把自己拉向前方，落地帶一記踢擊。',
@@ -237,59 +237,59 @@ export const ROSTER = [
     },
   },
   {
-    id: 'furnace',
-    name: '熔爐', en: 'FURNACE', title: '火焰拳套',
-    color: '#ff9a1a', accent: '#ffe27a',
-    tagline: '燒起來就不會停',
+    id: 'brawler',
+    name: '鐵拳', en: 'BRAWLER', title: '鐵指虎',
+    color: '#b8642a', accent: '#e8c98a',
+    tagline: '貼上來，就沒人能把我推開',
     stats: { hp: 110, speed: 280, jump: 850, weight: 1.1, atk: 1.04, def: 0.94, dash: 0.92 },
     build: { scale: 1.06, bulk: 1.12, headScale: 1.0 },
-    gear: { head: 'welder', shoulder: 'plate', back: 'tank', chest: 'plate' },
-    palette: { armor: '#7a4418', cloth: '#3d2a1d', armorMat: 'rust', metalMat: 'iron' },
-    weapon: { kind: 'gauntlets', reach: 0.9, hold: 0 },
-    passive: { name: '高溫', desc: '所有命中都附帶灼燒；對燃燒中的目標傷害 +15%。' },
+    gear: { head: 'welder', shoulder: 'plate', back: 'toolbelt', chest: 'plate' },
+    palette: { armor: '#6b4a2a', cloth: '#3d2f24', armorMat: 'rust', metalMat: 'iron' },
+    weapon: { kind: 'knuckles', reach: 0.86, hold: 0 },
+    passive: { name: '近身壓制', desc: '離對手越近，傷害越高（最多 +25%）。' },
     skills: [
       {
-        name: '噴火', desc: '前方噴出扇形火焰，持續灼燒。',
-        cd: 4.4, kind: 'cone',
-        params: { dur: 0.9, tick: 0.1, dmg: 3.6, range: 250, spread: 0.5, burn: 3 },
+        name: '震腳', desc: '重重踏地，把貼身的人震開。',
+        cd: 5.0, kind: 'burst',
+        params: { radius: 150, dmg: 20, kbx: 380, kby: -340 },
       },
       {
-        name: '爆燃', desc: '把燃料一次點燃，周身爆開。',
-        cd: 5.4, kind: 'burst',
-        params: { radius: 150, dmg: 20, kbx: 380, kby: -340, burn: 3, fire: true },
+        name: '衝拳', desc: '一步踏進去，一記直拳把人打退。',
+        cd: 3.6, kind: 'dashStrike',
+        params: { dist: 250, dur: 0.2, dmg: 16, kbx: 330, kby: -200, stagger: 0.3 },
       },
     ],
     ult: {
-      name: '焚化', desc: '把整片前場變成火海。',
-      kind: 'inferno', params: { radius: 300, dur: 5, tick: 0.3, dmg: 4.2, burn: 4 },
+      name: '百裂拳', desc: '揪住對手，近身連續重拳。',
+      kind: 'flurry', params: { hits: 12, dmg: 4.4, interval: 0.07, finishKb: 540 },
     },
   },
   {
-    id: 'surge',
-    name: '高壓', en: 'SURGE', title: '電擊棍',
-    color: '#6ee7ff', accent: '#fff27a',
+    id: 'prybar',
+    name: '撬棍', en: 'PRYBAR', title: '鐵撬',
+    color: '#9fae62', accent: '#dfe8ef',
     tagline: '打斷你的節奏，然後接管它',
     stats: { hp: 96, speed: 318, jump: 900, weight: 0.94, atk: 0.96, def: 1.04, dash: 1.12 },
     build: { scale: 0.99, bulk: 0.96, headScale: 1.0 },
-    gear: { head: 'mask', shoulder: 'plate', back: 'battery', chest: 'plate' },
-    palette: { armor: '#1f4a5c', cloth: '#22303a', armorMat: 'darkIron', metalMat: 'steel' },
-    weapon: { kind: 'baton', reach: 1.1, hold: -0.5 },
-    passive: { name: '導電', desc: '輕攻擊第三段必定麻痺，普攻節奏全場最快。' },
+    gear: { head: 'mask', shoulder: 'plate', back: 'toolbelt', chest: 'plate' },
+    palette: { armor: '#4a512f', cloth: '#2b3026', armorMat: 'darkIron', metalMat: 'steel' },
+    weapon: { kind: 'crowbar', reach: 1.06, hold: -0.35 },
+    passive: { name: '打樁', desc: '輕攻擊第三段必定暈眩，普攻節奏全場最快。' },
     skills: [
       {
-        name: '電擊突進', desc: '帶電衝刺，命中直接麻痺。',
+        name: '撬擊突進', desc: '低身衝進去，一記橫撬把人敲暈。',
         cd: 3.2, kind: 'dashStrike',
-        params: { dist: 300, dur: 0.2, dmg: 13, kbx: 260, kby: -180, stun: 0.42, pass: true, spark: true },
+        params: { dist: 300, dur: 0.2, dmg: 13, kbx: 260, kby: -180, stagger: 0.42, pass: true },
       },
       {
-        name: '電網', desc: '在腳下展開電場，踏進來就持續麻痺。',
+        name: '鐵蒺藜', desc: '往腳下撒一地鐵刺，踩到就流血又拖慢。',
         cd: 5.2, kind: 'zone',
-        params: { radius: 140, dur: 4, tick: 0.5, dmg: 3.4, stun: 0.16, slow: 0.75, electric: true },
+        params: { radius: 140, dur: 4, tick: 0.5, dmg: 3.4, bleed: 1, slow: 0.75 },
       },
     ],
     ult: {
-      name: '過載', desc: '把電池全部灌進棍子，連續電擊十次。',
-      kind: 'flurry', params: { hits: 10, dmg: 4.6, interval: 0.07, finishKb: 560, stun: 0.14, electric: true },
+      name: '亂棍', desc: '把人逼到牆角，一棍接一棍敲到底。',
+      kind: 'rushCombo', params: { hits: 11, dmg: 5.2, dash: 200, finishKb: 520 },
     },
   },
 ];

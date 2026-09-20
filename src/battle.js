@@ -93,8 +93,8 @@ export class Battle {
       f.dead = false;
       f.facing = i === 0 ? 1 : -1;
       f.attack = null;
-      f.hitstun = 0; f.lock = 0; f.freeze = 0; f.shockTime = 0;
-      f.burn = 0; f.poison = 0; f.bleed = 0; f.marked = 0; f.slow = 0; f.slowMul = 1;
+      f.hitstun = 0; f.lock = 0; f.stagger = 0;
+      f.bleed = 0; f.marked = 0; f.slow = 0; f.slowMul = 1;
       f.dr = 0; f.drTime = 0; f.armor = 0; f.invuln = 0;
       f.cds = [0, 0];
       f.comboCount = 0;

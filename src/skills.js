@@ -209,25 +209,6 @@ export class Zone extends Entity {
   draw(ctx) {
     const k = this.t / this.life;
     const a = clamp(Math.min(this.t * 4, 1) * (1 - Math.max(0, k - 0.8) * 5), 0, 1);
-    if (this.style === 'fire') {
-      // 地上的火海：一排翻滾的火舌
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      for (let i = 0; i < 14; i++) {
-        const fx2 = this.x - this.radius + (i / 13) * this.radius * 2;
-        const h = 40 + Math.sin(this.t * 9 + i * 1.7) * 26 + Math.sin(this.t * 3 + i) * 14;
-        const g = ctx.createLinearGradient(fx2, this.y + 30, fx2, this.y + 30 - h);
-        g.addColorStop(0, `rgba(255,220,150,${0.5 * a})`);
-        g.addColorStop(0.4, `rgba(255,140,40,${0.42 * a})`);
-        g.addColorStop(1, 'rgba(180,40,10,0)');
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.ellipse(fx2, this.y + 30 - h / 2, 22, h / 2, 0, 0, TAU);
-        ctx.fill();
-      }
-      ctx.restore();
-      return;
-    }
     ctx.save();
     ctx.globalAlpha = a;
     for (let i = 0; i < 3; i++) {
@@ -393,7 +374,7 @@ export class Hook extends Entity {
         if (this.x > b.x - 12 && this.x < b.x + b.w + 12 && this.y > b.y - 12 && this.y < b.y + b.h + 12) {
           this.state = 'caught';
           this.caught = foe;
-          user.dealDamage(foe, { dmg: this.dmg, kbx: 0, kby: 0, hitstun: 0.5, shock: this.stun || 0 });
+          user.dealDamage(foe, { dmg: this.dmg, kbx: 0, kby: 0, hitstun: 0.5, stagger: this.stagger || 0 });
           foe.marked = 3;                       // 鉤索的被動：被標記的人吃更多傷害
           battle.fx.spark(this.x, this.y, '#d8ffe8', 1.2, WORLD.ground);
           battle.audio.play('hit');
@@ -533,7 +514,7 @@ export function runSkill(kind, user, params, info = {}) {
             hitIds.add(f.id);
             user.dealDamage(f, {
               dmg: params.dmg, kbx: params.kbx, kby: params.kby,
-              hitstun: 0.3, shock: params.stun || 0, big: true,
+              hitstun: 0.3, stagger: params.stagger || 0, big: true,
               slow: params.slow, slowMul: 0.65, kbDir: face,
             });
             fx.spark(f.x, f.y - 50, c, 1.6);
@@ -553,7 +534,7 @@ export function runSkill(kind, user, params, info = {}) {
       const cx = user.x, cy = user.y - 50;
       hitCircle(user, cx, cy, params.radius, {
         dmg: params.dmg, kbx: params.kbx, kby: params.kby,
-        hitstun: 0.34, shock: params.stun || 0, big: true,
+        hitstun: 0.34, stagger: params.stagger || 0, big: true,
       });
       fx.ring(cx, cy, c, { r0: 12, r1: params.radius * 1.3, life: 0.36, width: 6 });
       fx.burst(cx, cy, ac, { count: 26, speed: 420, shape: 'hex', life: 0.5, g: 200 });
@@ -588,8 +569,7 @@ export function runSkill(kind, user, params, info = {}) {
           boom: params.boom || (big ? 110 : 0),
           hit: {
             dmg: params.dmg, kbx: params.kbx, kby: params.kby,
-            hitstun: big ? 0.5 : 0.3, burn: params.burn, freeze: params.freeze,
-            poison: params.poison, big,
+            hitstun: big ? 0.5 : 0.3, bleed: params.bleed, stagger: params.stagger, big,
           },
         });
         battle.spawn(p);
@@ -629,7 +609,7 @@ export function runSkill(kind, user, params, info = {}) {
             hitIds.add(f.id);
             user.dealDamage(f, {
               dmg: params.dmg, kbx: params.kbx, kby: params.kby,
-              hitstun: 0.45, burn: params.burn, big: true, kbDir: face,
+              hitstun: 0.45, big: true, kbDir: face,
             });
             fx.stop(0.09);
             fx.quake(10, 0.25);
@@ -799,7 +779,7 @@ export function runSkill(kind, user, params, info = {}) {
         life: 1.4,
         hit: {
           dmg: params.dmg, kbx: 120, kby: params.kby, hitstun: 0.4,
-          freeze: params.freeze, burn: params.burn, big: true, kbDir: face,
+          stagger: params.stagger, big: true, kbDir: face,
         },
       }));
       fx.quake(6, 0.2);
@@ -828,7 +808,7 @@ export function runSkill(kind, user, params, info = {}) {
       if (foe && !foe.dead) {
         user.dealDamage(foe, {
           dmg: params.dmg, kbx: params.kbx, kby: params.kby,
-          hitstun: 0.6, freeze: params.freeze, big: true,
+          hitstun: 0.6, stagger: params.stagger, big: true,
         });
       }
       break;
@@ -842,7 +822,7 @@ export function runSkill(kind, user, params, info = {}) {
         color: c, tick: params.tick, follow: params.follow ? user : null,
         hit: {
           dmg: params.dmg, kbx: 0, kby: 0, hitstun: 0,
-          poison: params.poison, slow: 0.8, slowMul: params.slow,
+          bleed: params.bleed, slow: 0.8, slowMul: params.slow,
         },
       }));
       fx.ring(user.x, user.y - 30, c, { r0: 10, r1: params.radius, life: 0.5, width: 4, squash: 0.45 });
@@ -871,7 +851,7 @@ export function runSkill(kind, user, params, info = {}) {
             if (f && !f.dead && Math.abs(f.x - user.x) < 130) {
               user.dealDamage(f, {
                 dmg: params.dmg, kbx: 40, kby: -40, hitstun: 0.12,
-                poison: params.poison, burn: params.burn, kbDir: face,
+                bleed: params.bleed, kbDir: face,
               });
               fx.slash(f.x, f.y - 56, ac, {
                 r: 60, width: 12, a0: rand(-3, 3), a1: rand(-3, 3) + 2, life: 0.18,
@@ -885,7 +865,7 @@ export function runSkill(kind, user, params, info = {}) {
           if (f && !f.dead && Math.abs(f.x - user.x) < 150) {
             user.dealDamage(f, {
               dmg: params.finishDmg, kbx: 520, kby: -360, hitstun: 0.5,
-              burn: params.burn, poison: params.poison, big: true, kbDir: face,
+              bleed: params.bleed, big: true, kbDir: face,
             });
             fx.spark(f.x, f.y - 50, ac, 2);
             fx.quake(12, 0.3);
@@ -906,11 +886,11 @@ export function runSkill(kind, user, params, info = {}) {
         finish: () => {
           hitCircle(user, user.x + face * 40, user.y - 20, params.radius * 0.5, {
             dmg: params.dmg, kbx: params.kbx, kby: params.kby, hitstun: 0.45,
-            burn: params.burn, big: true, kbDir: face,
+            big: true, kbDir: face,
           });
           battle.spawn(new Wave({
             user, color: c, x: user.x + face * 50, dir: face, speed: 620, life: 0.8,
-            hit: { dmg: params.dmg * 0.7, kbx: params.kbx * 0.8, kby: params.kby * 0.7, hitstun: 0.35, burn: params.burn },
+            hit: { dmg: params.dmg * 0.7, kbx: params.kbx * 0.8, kby: params.kby * 0.7, hitstun: 0.35 },
           }));
           fx.ring(user.x + face * 30, WORLD.ground, c, { r0: 10, r1: params.radius, life: 0.4, width: 7, squash: 0.3 });
           fx.burst(user.x + face * 40, WORLD.ground, ac, { count: 24, speed: 420, dir: -Math.PI / 2, spread: 2, shape: 'shard', life: 0.6 });
@@ -937,7 +917,7 @@ export function runSkill(kind, user, params, info = {}) {
               user, color: c, x, y: -60, vx: rand(-40, 40), vy: 520,
               gravity: 900, life: 2.4, radius: 20, shape: 'meteor',
               boom: params.radius,
-              hit: { dmg: params.dmg, kbx: 200, kby: -380, hitstun: 0.3, burn: params.burn, big: true },
+              hit: { dmg: params.dmg, kbx: 200, kby: -380, hitstun: 0.3, big: true },
             }));
           }
         },
@@ -1077,7 +1057,7 @@ export function runSkill(kind, user, params, info = {}) {
           user.setPose(idx % 2 ? 'light1' : 'light2', step);
           user.dealDamage(t2, {
             dmg: params.dmg, kbx: 30, kby: -30, hitstun: 0.1,
-            shock: params.stun || 0, kbDir: user.facing,
+            stagger: params.stagger || 0, kbDir: user.facing,
           });
           fx.spark(t2.x + rand(-20, 20), t2.y - 50 + rand(-20, 20), idx % 2 ? c : ac, 1);
           fx.stop(0.02);
@@ -1108,7 +1088,7 @@ export function runSkill(kind, user, params, info = {}) {
         user, color: c, mode: 'pull',
         x: user.x + face * 32, y: user.y - 62,
         vx: face * params.speed, vy: 0,
-        range: params.range, dmg: params.dmg, stun: params.stun,
+        range: params.range, dmg: params.dmg, stagger: params.stagger,
       }));
       fx.sparks(user.x + face * 34, user.y - 62, { count: 6, color: '#cfe8ff', speed: 200, dir: face > 0 ? 0 : Math.PI, spread: 1 });
       break;
@@ -1294,48 +1274,6 @@ export function runSkill(kind, user, params, info = {}) {
     }
 
     // ---------------------------------------------------------- 噴火
-    case 'cone': {
-      const dur = params.dur;
-      user.lock = dur + 0.1;
-      user.setPose('cast', dur + 0.2);
-      battle.spawn(new Routine({
-        life: dur,
-        step: (dt, self) => {
-          self.tick = (self.tick || 0) - dt;
-          const ox = user.x + face * 34, oy = user.y - 58;
-          // 火舌
-          for (let i = 0; i < 3; i++) {
-            const a = (face > 0 ? 0 : Math.PI) + rand(-params.spread, params.spread);
-            const sp = rand(260, 620);
-            fx.particle({
-              x: ox, y: oy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40,
-              g: -260, drag: 0.94, life: rand(0.25, 0.5),
-              size: rand(8, 18), grow: 46,
-              color: i === 0 ? '#ffe9a8' : (i === 1 ? '#ff9a30' : '#ff5a18'),
-              shape: 'smoke', blend: 'add',
-            });
-          }
-          if (Math.random() < 0.3) {
-            fx.smoke(ox + face * rand(60, 200), oy - rand(0, 40), { count: 1, color: '#3b332c', r: 16, rise: 70, life: 1.1 });
-          }
-          if (self.tick <= 0) {
-            self.tick = params.tick;
-            const r = rect(
-              face > 0 ? ox : ox - params.range,
-              oy - params.range * params.spread,
-              params.range, params.range * params.spread * 2
-            );
-            hitRect(user, r, {
-              dmg: params.dmg, kbx: 60, kby: -30, hitstun: 0.08,
-              burn: params.burn, kbDir: face,
-            });
-          }
-        },
-      }));
-      battle.audio.play('skill');
-      break;
-    }
-
     // ---------------------------------------------------------- 連續砸地
     case 'quake': {
       user.lock = params.count * params.interval + 0.4;
@@ -1452,21 +1390,6 @@ export function runSkill(kind, user, params, info = {}) {
     }
 
     // ---------------------------------------------------------- 火海
-    case 'inferno': {
-      user.lock = 0.6;
-      const zx = user.x + face * 150;
-      battle.spawn(new Zone({
-        user, x: zx, y: WORLD.ground - 40, radius: params.radius, life: params.dur,
-        color: '#ff7a2a', tick: params.tick, style: 'fire',
-        hit: { dmg: params.dmg, kbx: 0, kby: 0, hitstun: 0, burn: params.burn },
-      }));
-      fx.fireBurst(zx, WORLD.ground - 40, { r: params.radius * 0.8, life: 0.8 });
-      fx.flashScreen(0.3, '#ff9a3c');
-      fx.quake(14, 0.5);
-      battle.audio.play('boom');
-      break;
-    }
-
     // ---------------------------------------------------------- 收割
     case 'reap': {
       user.lock = 0.5;

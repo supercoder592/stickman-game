@@ -61,12 +61,10 @@ export class Fighter {
     this.drTime = 0;
     this.guarding = false;
 
-    this.burn = 0; this.burnDps = 0;
-    this.freeze = 0;
-    this.shockTime = 0;
-    this.slow = 0; this.slowMul = 1;
-    this.poison = 0; this.poisonTime = 0;
-    this.bleed = 0; this.bleedTime = 0;       // 鏈鋸的流血，可疊
+    // 狀態全部是物理性的：流血、暈眩、腿傷（拖慢）、被鉤索標記
+    this.stagger = 0;                         // 被敲暈：站著不能動
+    this.slow = 0; this.slowMul = 1;          // 腿傷：移速下降
+    this.bleed = 0; this.bleedTime = 0;       // 流血，可疊
     this.marked = 0;                          // 被鉤索標記的剩餘時間
     this.haste = 0;
 
@@ -119,7 +117,7 @@ export class Fighter {
   }
 
   canAct() {
-    return !this.dead && this.hitstun <= 0 && this.freeze <= 0 && this.shockTime <= 0
+    return !this.dead && this.hitstun <= 0 && this.stagger <= 0
       && this.lock <= 0 && !this.attack;
   }
 
@@ -135,7 +133,7 @@ export class Fighter {
     }
     this.tickDots(dt);
 
-    const stunned = this.hitstun > 0 || this.freeze > 0 || this.shockTime > 0;
+    const stunned = this.hitstun > 0 || this.stagger > 0;
     if (stunned) {
       this.attack = null;
       this.guarding = false;
@@ -157,8 +155,7 @@ export class Fighter {
     this.hitstun = dec(this.hitstun);
     this.invuln = dec(this.invuln);
     this.armor = dec(this.armor);
-    this.freeze = dec(this.freeze);
-    this.shockTime = dec(this.shockTime);
+    this.stagger = dec(this.stagger);
     this.haste = dec(this.haste);
     this.dashCd = dec(this.dashCd);
     this.comboWindow = dec(this.comboWindow);
@@ -179,15 +176,6 @@ export class Fighter {
   }
 
   tickDots(dt) {
-    if (this.burn > 0) {
-      this.burn -= dt;
-      this.damageOverTime(this.burnDps * dt, '#ff7a3c');
-    }
-    if (this.poison > 0) {
-      this.poisonTime -= dt;
-      this.damageOverTime(this.poison * 1.6 * dt, '#b46bff');
-      if (this.poisonTime <= 0) this.poison = 0;
-    }
     if (this.bleed > 0) {
       this.bleedTime -= dt;
       this.damageOverTime(this.bleed * 2.1 * dt, '#d1342f');
@@ -315,7 +303,7 @@ export class Fighter {
     this.comboKey = null;
     this.comboWindow = 0;
     // 伏特的被動：出招速度更快
-    if (this.char.passive.name === '導電') this.attack.rate = 1.18;
+    if (this.char.passive.name === '打樁') this.attack.rate = 1.18;
     if (def.step && this.onGround) this.vx = this.facing * def.step;
     this.battle?.audio.play('swing');
   }
@@ -341,7 +329,7 @@ export class Fighter {
           kbx: def.kb[0], kby: def.kb[1],
           hitstun: def.hitstun,
           heavy: def.heavy,
-          shock: this.char.passive.name === '導電' && a.key === 'light3' ? 0.45 : 0,
+          stagger: this.char.passive.name === '打樁' && a.key === 'light3' ? 0.45 : 0,
         });
         if (landed) {
           this.meter = Math.min(MAX_METER, this.meter + (def.meter || 4));
@@ -395,7 +383,6 @@ export class Fighter {
 
     // 角色被動的加成
     const p = this.char.passive.name;
-    if (p === '高溫' && target.burn > 0) dmg *= 1.15;
     if (p === '索敵' && target.marked > 0) dmg *= 1.2;
     if (p === '死神凝視' && target.hp / target.maxHp < 0.35) dmg *= 1.3;
     if (p === '處刑' && target.hitstun > 0) dmg *= 1.25;
@@ -403,9 +390,12 @@ export class Fighter {
       const d = Math.abs(target.x - this.x);
       dmg *= 1 + clamp(d / 520, 0, 1) * 0.2;
     }
+    if (p === '近身壓制') {
+      const d = Math.abs(target.x - this.x);
+      dmg *= 1 + (1 - clamp(d / 260, 0, 1)) * 0.25;
+    }
 
     const hit = { ...o, dmg };
-    if (p === '高溫' && !hit.burn) hit.burn = 1.8;
     if (p === '撕裂' && !hit.bleed) hit.bleed = 1;
 
     const landed = target.receiveHit(this, hit);
@@ -449,15 +439,12 @@ export class Fighter {
     this.lastHitBy = from;
 
     // 狀態異常（DoT 類即使霸體或格擋也會附著）
-    if (hit.burn) { this.burn = Math.max(this.burn, hit.burn); this.burnDps = Math.max(this.burnDps, 4.5); }
-    if (hit.poison) { this.poison = Math.min(10, this.poison + hit.poison); this.poisonTime = 5; }
     if (hit.bleed) { this.bleed = Math.min(8, this.bleed + hit.bleed); this.bleedTime = 4; }
     if (hit.slow) { this.slow = Math.max(this.slow, hit.slow); this.slowMul = Math.min(this.slowMul, hit.slowMul || 0.7); }
 
     const armored = this.armor > 0 && !hit.ignoreArmor;
     if (!armored && !blocked) {
-      if (hit.freeze) { this.freeze = Math.max(this.freeze, hit.freeze); this.attack = null; }
-      if (hit.shock) this.shockTime = Math.max(this.shockTime, hit.shock);
+      if (hit.stagger) { this.stagger = Math.max(this.stagger, hit.stagger); this.attack = null; }
       const tough = ['鋼體', '重量級'].includes(this.char.passive.name) ? 0.6 : 1;
       const kbs = knockbackScale(this) * tough;
       const dirX = hit.kbDir !== undefined ? hit.kbDir : sign(this.x - from.x) || from.facing;
@@ -486,13 +473,9 @@ export class Fighter {
     return true;
   }
 
+  /** 反制型被動的掛點（受擊後對攻擊者做點什麼）。目前沒有角色用到，保留給之後擴充。 */
   counterPassives(from, dmg) {
     if (!from || from === this || from.dead) return;
-    const p = this.char.passive.name;
-    if (p === '高溫' && Math.abs(from.x - this.x) < 150) {
-      from.burn = Math.max(from.burn, 1.6);
-      from.burnDps = Math.max(from.burnDps, 4.0);
-    }
   }
 
   heal(v) {
@@ -522,7 +505,7 @@ export class Fighter {
     if (!this.onGround) {
       this.vy = Math.min(this.vy + GRAVITY * gmul * dt, MAX_FALL);
     }
-    if (this.freeze > 0) this.vx = approach(this.vx, 0, 2000 * dt);
+    if (this.stagger > 0) this.vx = approach(this.vx, 0, 2000 * dt);
 
     const prevY = this.y;
     this.x += this.vx * dt;
@@ -587,7 +570,7 @@ export class Fighter {
       this.poseK = clamp(this.poseLock.t / this.poseLock.dur, 0, 1);
       return;
     }
-    if (this.freeze > 0 || this.shockTime > 0 || this.hitstun > 0) {
+    if (this.stagger > 0 || this.hitstun > 0) {
       this.pose = 'hurt';
       this.poseK = 1 - clamp(this.hitstun / this.hitstunMax, 0, 1);
       return;
@@ -634,8 +617,8 @@ export class Fighter {
       Math.round(this.hp * 10) / 10, Math.round(this.meter),
       this.poseIndex(), Math.round(this.poseK * 100) / 100,
       Math.round(this.phase * 100) / 100,
-      this.burn > 0 ? 1 : 0, this.freeze > 0 ? 1 : 0,
-      this.poison, this.dr > 0 ? 1 : 0, this.dead ? 1 : 0,
+      this.bleed, this.stagger > 0 ? 1 : 0,
+      this.slow > 0 ? 1 : 0, this.dr > 0 ? 1 : 0, this.dead ? 1 : 0,
       Math.round(this.hitFlash * 100) / 100,
     ];
   }
@@ -661,8 +644,8 @@ export class Fighter {
     this.hp = s[3]; this.meter = s[4];
     this.pose = POSE_LIST[s[5]] || 'idle';
     this.poseK = s[6]; this.phase = s[7];
-    this.burn = s[8] ? 1 : 0; this.freeze = s[9] ? 1 : 0;
-    this.poison = s[10]; this.dr = s[11] ? 0.5 : 0;
+    this.bleed = s[8]; this.stagger = s[9] ? 1 : 0;
+    this.slow = s[10] ? 1 : 0; this.dr = s[11] ? 0.5 : 0;
     this.drTime = s[11] ? 1 : 0;
     this.hitFlash = s[13];
     if (s[12] && !this.dead) { this.dead = true; this.hp = 0; }
