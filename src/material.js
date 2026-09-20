@@ -17,25 +17,28 @@ export const RIM = { x: 0.62, y: -0.78 };
 
 /** 材質：base 中間調、light 亮面、dark 暗面、spec 高光強度、rough 粗糙度（高光越寬） */
 export const MAT = {
-  steel: { base: '#767d89', light: '#eef3fb', dark: '#1e222a', spec: 0.95, rough: 0.12 },
-  iron: { base: '#535964', light: '#a8b1bf', dark: '#16191f', spec: 0.55, rough: 0.3 },
-  darkIron: { base: '#3d424a', light: '#868e9c', dark: '#111318', spec: 0.4, rough: 0.35 },
-  brass: { base: '#9a7a3c', light: '#f3dc9a', dark: '#2c2110', spec: 0.8, rough: 0.2 },
-  rust: { base: '#7e5335', light: '#cf9765', dark: '#281509', spec: 0.22, rough: 0.6 },
-  leather: { base: '#634b37', light: '#a9855f', dark: '#211610', spec: 0.18, rough: 0.7 },
-  cloth: { base: '#3c4354', light: '#7c8799', dark: '#15181f', spec: 0.06, rough: 0.9 },
-  skin: { base: '#8f6242', light: '#caa07a', dark: '#39241a', spec: 0.2, rough: 0.55 },
-  rubber: { base: '#2b2e34', light: '#666c76', dark: '#0c0d10', spec: 0.3, rough: 0.45 },
-  bone: { base: '#b9b3a4', light: '#f2ece0', dark: '#3b372f', spec: 0.3, rough: 0.5 },
+  steel: { base: '#a3aec0', light: '#eef3fb', dark: '#5f6a7c', spec: 0.95, rough: 0.12 },
+  iron: { base: '#828d9d', light: '#c2ccda', dark: '#4b5462', spec: 0.55, rough: 0.3 },
+  darkIron: { base: '#5c6573', light: '#939cab', dark: '#343b46', spec: 0.4, rough: 0.35 },
+  brass: { base: '#d4a63f', light: '#f9e59c', dark: '#8a6519', spec: 0.8, rough: 0.2 },
+  rust: { base: '#b06a33', light: '#e39a5d', dark: '#6d3d19', spec: 0.22, rough: 0.6 },
+  leather: { base: '#8f5c33', light: '#c08a58', dark: '#57351a', spec: 0.18, rough: 0.7 },
+  cloth: { base: '#c3c9d4', light: '#f2f5fa', dark: '#7a8492', spec: 0.06, rough: 0.9 },
+  skin: { base: '#e2a877', light: '#f8d6ad', dark: '#ab6c41', spec: 0.2, rough: 0.55 },
+  rubber: { base: '#4e545e', light: '#828a97', dark: '#2b2f36', spec: 0.3, rough: 0.45 },
+  bone: { base: '#e7e1d1', light: '#fcf8f0', dark: '#a89f8a', spec: 0.3, rough: 0.5 },
 };
+
 
 /** 依角色的主題色把材質染一下（同一套盔甲，不同人不同顏色） */
 export function tint(mat, color, amount = 0.35) {
+  const base = mixColor(mat.base, color, amount);
   return {
     ...mat,
-    base: mixColor(mat.base, color, amount),
-    light: mixColor(mat.light, color, amount * 0.55),
-    dark: mixColor(mat.dark, color, amount * 0.5),
+    base,
+    // 亮面＝本色加白，陰影＝本色壓暗並偏冷，整組一起跟著主題色走
+    light: mixColor(base, '#ffffff', 0.34),
+    dark: mixColor(mixColor(base, '#000000', 0.34), '#2a3350', 0.18),
   };
 }
 
@@ -157,44 +160,51 @@ export function bladeShape(ax, ay, bx, by, w, back = 0.4) {
 export function shade(ctx, path, mat, opts = {}) {
   const {
     cx = 0, cy = 0, r = 30, light = LIGHT, rim = null, rimWidth = 1.5,
-    alpha = 1, spec = true, ao = 0,
+    alpha = 1, spec = true, ao = 0, cel = true,
   } = opts;
 
   ctx.save();
   ctx.globalAlpha = alpha;
 
-  // 主漸層：亮面在光源側
   const gx0 = cx - light.x * r, gy0 = cy - light.y * r;
   const gx1 = cx + light.x * r, gy1 = cy + light.y * r;
   const g = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
-  g.addColorStop(0, mat.light);
-  g.addColorStop(0.3, mixColor(mat.light, mat.base, 0.72));
-  g.addColorStop(0.58, mat.base);
-  g.addColorStop(1, mat.dark);
+  if (cel) {
+    // 街機格鬥的上色法：亮面／本色／陰影三塊實色，交界是硬邊不是漸層。
+    // 用同一個位置放兩個色停就能做出硬邊，不必額外裁切。
+    g.addColorStop(0, mat.light);
+    g.addColorStop(0.30, mat.light);
+    g.addColorStop(0.3001, mat.base);
+    g.addColorStop(0.70, mat.base);
+    g.addColorStop(0.7001, mat.dark);
+    g.addColorStop(1, mat.dark);
+  } else {
+    g.addColorStop(0, mat.light);
+    g.addColorStop(0.42, mat.base);
+    g.addColorStop(1, mat.dark);
+  }
   ctx.fillStyle = g;
   ctx.fill(path);
 
-  // 金屬高光：一條窄帶
-  if (spec && mat.spec > 0.2) {
+  // 金屬的反光：貼著亮面邊緣的一條白
+  if (spec && mat.spec > 0.45) {
     const sg = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
-    const mid = 0.16 + mat.rough * 0.25;
-    sg.addColorStop(Math.max(0, mid - 0.12), 'rgba(255,255,255,0)');
-    sg.addColorStop(mid, `rgba(255,255,255,${0.55 * mat.spec})`);
-    sg.addColorStop(Math.min(1, mid + 0.14), 'rgba(255,255,255,0)');
+    sg.addColorStop(0, `rgba(255,255,255,${0.5 * mat.spec})`);
+    sg.addColorStop(0.14, `rgba(255,255,255,${0.5 * mat.spec})`);
+    sg.addColorStop(0.1401, 'rgba(255,255,255,0)');
     ctx.fillStyle = sg;
     ctx.fill(path);
   }
 
-  // 遮蔽陰影：形狀下緣壓深一點，看起來有重量
+  // 遮蔽陰影：零件交界處壓深一點
   if (ao > 0) {
     const ag = ctx.createLinearGradient(cx, cy - r, cx, cy + r);
     ag.addColorStop(0, 'rgba(0,0,0,0)');
-    ag.addColorStop(1, `rgba(0,0,0,${0.38 * ao})`);
+    ag.addColorStop(1, `rgba(0,0,0,${0.3 * ao})`);
     ctx.fillStyle = ag;
     ctx.fill(path);
   }
 
-  // 輪廓光：背光側描一道彩色細邊，角色才不會糊進背景
   if (rim) {
     ctx.save();
     ctx.clip(path);
@@ -206,11 +216,26 @@ export function shade(ctx, path, mat, opts = {}) {
     ctx.restore();
   }
 
-  // 外緣暗描邊：讓形狀邊界清楚（寫實但不糊）
-  ctx.globalAlpha = alpha * (opts.outline === undefined ? 0.6 : opts.outline);
-  ctx.lineWidth = opts.outlineWidth || 1.7;
-  ctx.strokeStyle = 'rgba(6,7,10,0.9)';
+  // 粗黑描邊：街機 sprite 的招牌，每塊形狀都描，合起來就是一圈硬輪廓
+  ctx.globalAlpha = alpha * (opts.outline === undefined ? 1 : opts.outline);
+  ctx.lineWidth = opts.outlineWidth || 2.4;
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#15121a';
   ctx.stroke(path);
+  ctx.restore();
+}
+
+/** 在已經上好色的形狀裡加一條陰影線（肌肉溝、衣褶、甲片分線） */
+export function creaseLine(ctx, path, pts, color = 'rgba(0,0,0,0.32)', width = 2) {
+  ctx.save();
+  ctx.clip(path);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.stroke();
   ctx.restore();
 }
 

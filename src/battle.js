@@ -303,13 +303,13 @@ export class Battle {
     const [a, b] = this.fighters;
     const mid = (a.x + b.x) / 2;
     const spread = Math.abs(a.x - b.x);
-    const zoom = clamp(1.85 - spread / 950, 1.12, 1.72);
+    const zoom = clamp(2.25 - spread / 860, 1.36, 2.05);
     this.zoom = this.zoom ? lerpNum(this.zoom, zoom, 0.06) : zoom;
     const visW = WORLD.view / this.zoom;
     const visH = WORLD.h / this.zoom;
     const focusY = Math.min(a.y, b.y) - 40;
     let x = clamp(mid - visW / 2, -30, WORLD.w - visW + 30);
-    let y = clamp(focusY - visH * 0.52, -140, WORLD.ground + 74 - visH);
+    let y = clamp(focusY - visH * 0.56, -140, WORLD.ground + 116 - visH);
     this.camX = this.camX === undefined ? x : lerpNum(this.camX, x, 0.12);
     this.camY = this.camY === undefined ? y : lerpNum(this.camY, y, 0.09);
     return { x: this.camX, y: this.camY, zoom: this.zoom };
@@ -330,7 +330,7 @@ export class Battle {
     for (const p of this.platforms) drawPlatform(ctx, p, this.time);
 
     // 濕地板上的倒影（畫在角色之前，才會被角色蓋住下緣）
-    for (const f of this.fighters) drawFighter(ctx, f, { reflection: true, shadow: false, onlyReflection: true });
+    // 木地板不做鏡面倒影：接地陰影就夠了（見 drawFighter 的 groundShadow）
 
     drawFog(ctx, this.time, cam.x);
     this.fx.draw(ctx, 'back');
@@ -349,12 +349,12 @@ export class Battle {
 
     for (const e of this.entities) if (e.layer !== 'back') e.draw(ctx, this);
     this.fx.draw(ctx, 'front');
-    drawRain(ctx, this.time, cam.x, 0.85);
+    drawRain(ctx, this.time, cam.x, 0);
     drawForeground(ctx, cam.x);
     ctx.restore();
 
     this.fx.drawFlash(ctx, WORLD.view, WORLD.h);
-    drawGrade(ctx, WORLD.view, WORLD.h, { grain: 0.045, vignette: 0.5 });
+    drawGrade(ctx, WORLD.view, WORLD.h, { grain: 0, vignette: 0.18 });
   }
 
   /** 武器尖端的殘影：出招時才留，收招就散掉 */

@@ -9,7 +9,7 @@
 
 import {
   MAT, LIGHT, RIM, tint, mixColor, capsule, poly, smooth, ovalPath, limbPath, bladeShape,
-  shade, shadeLimb, groundShadow, puff, bloom, grainPattern,
+  shade, shadeLimb, creaseLine, groundShadow, puff, bloom, grainPattern,
 } from './material.js';
 import { poseFor } from './rig.js';
 import { withAlpha, lerp, clamp, makeRng, rand } from './util.js';
@@ -34,11 +34,11 @@ function buildBackdrop() {
 
   // --- 天空：黃昏的髒橘到夜藍 ---
   const sky = c.createLinearGradient(0, 0, 0, h);
-  sky.addColorStop(0, '#0b1020');
-  sky.addColorStop(0.42, '#243048');
-  sky.addColorStop(0.72, '#6b5a5a');
-  sky.addColorStop(0.88, '#b2765a');
-  sky.addColorStop(1, '#d99a63');
+  sky.addColorStop(0, '#2a5c96');
+  sky.addColorStop(0.38, '#5c8fc4');
+  sky.addColorStop(0.66, '#a9c1d8');
+  sky.addColorStop(0.85, '#f0c48a');
+  sky.addColorStop(1, '#f5d9a8');
   c.fillStyle = sky;
   c.fillRect(0, 0, w, h);
 
@@ -48,9 +48,9 @@ function buildBackdrop() {
     const y = 60 + rng() * (h * 0.5);
     const rx = 120 + rng() * 260;
     const ry = 14 + rng() * 26;
-    const a = 0.05 + rng() * 0.10;
+    const a = 0.16 + rng() * 0.2;
     const g = c.createRadialGradient(x, y, 0, x, y, rx);
-    const col = y > h * 0.4 ? '#d9a57a' : '#2b3550';
+    const col = y > h * 0.4 ? '#fff0d8' : '#eaf1fb';
     g.addColorStop(0, withAlpha(col, a));
     g.addColorStop(1, withAlpha(col, 0));
     c.save();
@@ -97,20 +97,20 @@ function buildBackdrop() {
       x += bw + 4 + rng() * 18;
     }
   };
-  drawBlocks(WORLD.ground - 120, 120, 300, '#39435c', 0.55, 90);   // 最遠：被霧洗淡
-  drawBlocks(WORLD.ground - 60, 90, 240, '#242c3d', 0.34, 110);
-  drawBlocks(WORLD.ground - 10, 70, 190, '#141922', 0.16, 130);    // 最近：幾乎全黑
+  drawBlocks(WORLD.ground - 120, 120, 300, '#8fa6c4', 0.55, 90);   // 最遠：被天光洗淡
+  drawBlocks(WORLD.ground - 60, 90, 240, '#647ea3', 0.34, 110);
+  drawBlocks(WORLD.ground - 10, 70, 190, '#42557a', 0.16, 130);    // 最近：顏色最實
 
   // 大氣透視：靠近地平線越濁，遠景自然退後
   const haze = c.createLinearGradient(0, WORLD.ground - 340, 0, WORLD.ground);
-  haze.addColorStop(0, 'rgba(120,120,140,0)');
-  haze.addColorStop(0.55, 'rgba(150,130,120,0.18)');
-  haze.addColorStop(1, 'rgba(190,150,120,0.34)');
+  haze.addColorStop(0, 'rgba(230,220,210,0)');
+  haze.addColorStop(0.55, 'rgba(240,215,180,0.2)');
+  haze.addColorStop(1, 'rgba(250,225,185,0.4)');
   c.fillStyle = haze;
   c.fillRect(0, WORLD.ground - 340, w, 340);
 
   // --- 工業結構：吊車與鐵塔 ---
-  const steel = '#141922';
+  const steel = '#3a4560';
   const drawCrane = (x, baseY, scale) => {
     c.save();
     c.translate(x, baseY);
@@ -135,7 +135,7 @@ function buildBackdrop() {
 
   // 煙囪 + 排煙
   for (const [cx, sc] of [[760, 1], [1180, 0.8]]) {
-    c.fillStyle = '#171d27';
+    c.fillStyle = '#44506b';
     c.fillRect(cx - 16 * sc, WORLD.ground - 300 * sc, 32 * sc, 300 * sc);
     for (let i = 0; i < 6; i++) {
       const g = c.createRadialGradient(cx, WORLD.ground - 300 * sc - i * 26, 0, cx, WORLD.ground - 300 * sc - i * 26, 40 + i * 12);
@@ -152,7 +152,7 @@ function buildBackdrop() {
   // 矮一點、淡一點：它是場地的邊界，不該比打架的人還搶眼
   c.save();
   c.globalAlpha = 0.34;
-  c.strokeStyle = '#0b0e14';
+  c.strokeStyle = '#2e3850';
   c.lineWidth = 1;
   for (let x = -40; x < w + 40; x += 16) {
     c.beginPath();
@@ -163,7 +163,7 @@ function buildBackdrop() {
     c.stroke();
   }
   c.globalAlpha = 0.85;
-  c.fillStyle = '#0b0e15';
+  c.fillStyle = '#2e3850';
   for (let x = -40; x < w + 60; x += 210) {
     c.fillRect(x, WORLD.ground - 118, 5, 118);
     c.fillStyle = 'rgba(190,205,235,0.12)';     // 柱子受光的那一側
@@ -175,8 +175,8 @@ function buildBackdrop() {
 
   // --- 落在地面前的整體陰影：背景越靠近腳邊越沉，人物才跳得出來 ---
   const sink = c.createLinearGradient(0, WORLD.ground - 170, 0, WORLD.ground);
-  sink.addColorStop(0, 'rgba(6,8,14,0)');
-  sink.addColorStop(1, 'rgba(6,8,14,0.4)');
+  sink.addColorStop(0, 'rgba(40,52,74,0)');
+  sink.addColorStop(1, 'rgba(40,52,74,0.24)');
   c.fillStyle = sink;
   c.fillRect(0, WORLD.ground - 170, w, 170);
 
@@ -223,25 +223,14 @@ function drawLightShafts(ctx, t) {
  * 打完人物之後再壓上去，畫面立刻有「前／中／後」三層深度。
  */
 export function drawForeground(ctx, camX) {
+  // 街機格鬥的舞台不擋視線：前景只留一點點地面的邊緣陰影
   ctx.save();
   ctx.translate(-camX * 0.4, 0);
-  // 頭頂的鋼樑：只壓畫面上緣，不擋住打架的人
-  ctx.fillStyle = 'rgba(4,5,9,0.92)';
-  for (const bx of [-300, 900, 2100]) {
-    ctx.fillRect(bx, -240, 1100, 210);
-    ctx.fillStyle = 'rgba(150,168,200,0.08)';
-    ctx.fillRect(bx, -32, 1100, 3);
-    ctx.fillStyle = 'rgba(4,5,9,0.92)';
-    // 垂下來的吊索
-    ctx.fillRect(bx + 260, -30, 4, 60);
-    ctx.fillRect(bx + 700, -30, 4, 96);
-  }
-  // 腳前的地面陰影，人物才像站在坑裡打
-  const g = ctx.createLinearGradient(0, WORLD.h - 120, 0, WORLD.h + 40);
-  g.addColorStop(0, 'rgba(3,4,8,0)');
-  g.addColorStop(1, 'rgba(3,4,8,0.8)');
+  const g = ctx.createLinearGradient(0, WORLD.h - 70, 0, WORLD.h + 20);
+  g.addColorStop(0, 'rgba(90,58,30,0)');
+  g.addColorStop(1, 'rgba(90,58,30,0.35)');
   ctx.fillStyle = g;
-  ctx.fillRect(-600, WORLD.h - 120, WORLD.w + 1200, 200);
+  ctx.fillRect(-600, WORLD.h - 70, WORLD.w + 1200, 120);
   ctx.restore();
 }
 
@@ -270,7 +259,7 @@ export function drawSky(ctx, t, tintColor = '#3a2a6b', camX = 0) {
   if (!backdrop) buildBackdrop();
   ctx.save();
   // 鏡頭可能拍到世界上方，先鋪滿夜空底色
-  ctx.fillStyle = '#0a0e1c';
+  ctx.fillStyle = '#5c8fc4';
   ctx.fillRect(-600, -700, WORLD.w + 1200, 1400);
   ctx.translate(camX * 0.22, 0);
   ctx.drawImage(backdrop, -100, 0);
@@ -283,15 +272,15 @@ export function drawGround(ctx, t) {
   const { w, ground, h } = WORLD;
   // 地板本體
   const g = ctx.createLinearGradient(0, ground, 0, h + 120);
-  g.addColorStop(0, '#22242a');
-  g.addColorStop(0.25, '#15171b');
-  g.addColorStop(1, '#090a0d');
+  g.addColorStop(0, '#c99a62');
+  g.addColorStop(0.3, '#b07f4c');
+  g.addColorStop(1, '#8a5f36');
   ctx.fillStyle = g;
   ctx.fillRect(-400, ground, w + 800, h - ground + 400);
 
   // 地磚縫與裂痕
   ctx.save();
-  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+  ctx.strokeStyle = 'rgba(70,40,18,0.35)';
   ctx.lineWidth = 2;
   for (let x = -400; x < w + 400; x += 160) {
     ctx.beginPath();
@@ -299,7 +288,7 @@ export function drawGround(ctx, t) {
     ctx.lineTo(x - 60, h + 200);
     ctx.stroke();
   }
-  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.strokeStyle = 'rgba(255,240,215,0.14)';
   ctx.lineWidth = 1;
   for (let i = 0; i < 5; i++) {
     const yy = ground + 18 + i * 34;
@@ -312,8 +301,8 @@ export function drawGround(ctx, t) {
 
   // 濕柏油：地平線附近反射一點天光，越往前越暗
   const hl = ctx.createLinearGradient(0, ground - 2, 0, ground + 90);
-  hl.addColorStop(0, 'rgba(210,160,120,0.18)');
-  hl.addColorStop(0.35, 'rgba(120,110,120,0.06)');
+  hl.addColorStop(0, 'rgba(255,240,210,0.3)');
+  hl.addColorStop(0.35, 'rgba(255,230,190,0.1)');
   hl.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = hl;
   ctx.fillRect(-400, ground - 2, w + 800, 92);
@@ -327,7 +316,7 @@ export function drawGround(ctx, t) {
     const rx = 40 + rng() * 90;
     const ry = rx * 0.16;
     const pg = ctx.createRadialGradient(px, py, 0, px, py, rx);
-    pg.addColorStop(0, 'rgba(150,180,220,0.18)');
+    pg.addColorStop(0, 'rgba(255,238,205,0.1)');
     pg.addColorStop(1, 'rgba(150,180,220,0)');
     ctx.fillStyle = pg;
     ctx.beginPath();
@@ -416,15 +405,18 @@ function materials(char) {
   const c = char.color;
   const p = char.palette || {};
   return {
-    skin: MAT.skin,
-    cloth: tint(MAT.cloth, p.cloth || c, 0.4),
-    armor: tint(p.armorMat ? MAT[p.armorMat] : MAT.iron, p.armor || c, 0.32),
+    skin: p.skin ? tint(MAT.skin, p.skin, 0.4) : MAT.skin,
+    // 主色直接當衣服的顏色：街機格鬥就是靠一件鮮豔的衣服認人
+    cloth: tint(MAT.cloth, c, 0.72),
+    cloth2: tint(MAT.cloth, p.cloth || char.accent, 0.66),
+    armor: tint(p.armorMat ? MAT[p.armorMat] : MAT.iron, p.armor || char.accent, 0.5),
     metal: p.metalMat ? MAT[p.metalMat] : MAT.steel,
     iron: MAT.iron,
     darkIron: MAT.darkIron,
     bone: MAT.bone,
     strap: MAT.leather,
     rubber: MAT.rubber,
+    glove: tint(MAT.rubber, char.accent, 0.62),
     accent: char.accent,
     rim: c,
   };
@@ -449,22 +441,22 @@ export function drawFighter(ctx, f, opts = {}) {
     ctx.save();
     ctx.translate(f.x, f.y);
     ctx.scale(f.facing * scale, scale);
-    if (!flat) {
-      // 輪廓光：整個人先用邊光色畫一次、往背光側推一點，
-      // 正常的身體再蓋上去 —— 只有外框會露出那一圈光，不是每塊零件都在發光。
+    drawBody(ctx, char, J, f, { flat, alpha });
+    // 受擊白閃：整個人變白一格，不是蓋一塊白方塊
+    const hurt = f.hitFlash || 0;
+    if (hurt > 0.02 && !flat) {
       ctx.save();
-      ctx.translate(RIM.x * -2.2, RIM.y * -2.2);
-      drawBody(ctx, char, J, f, { flat: mixColor(char.color, '#ffe4c4', 0.55), alpha: alpha * 0.55 });
+      ctx.globalAlpha = Math.min(0.8, hurt * 0.8) * alpha;
+      drawBody(ctx, char, J, f, { flat: '#ffffff', alpha: 1 });
       ctx.restore();
     }
-    drawBody(ctx, char, J, f, { flat, alpha });
     ctx.restore();
   }
 
   if (reflection && !flat && f.y >= WORLD.ground - 2) {
     // 濕地板倒影：上下翻轉、壓扁、淡出
     ctx.save();
-    ctx.globalAlpha = 0.16 * alpha;
+    ctx.globalAlpha = 0.07 * alpha;
     ctx.translate(f.x, WORLD.ground + 6);
     ctx.scale(f.facing * scale, -scale * 0.62);
     drawBody(ctx, char, J, f, { flat: null, alpha: 1, noRim: true });
@@ -479,7 +471,6 @@ function drawBody(ctx, char, J, f, { flat = null, alpha = 1, noRim = false } = {
   const rim = null;   // 邊光改成整體輪廓一次過（見 drawFighter），不再逐塊描邊
   const gear = char.gear || {};
   const t = f.animTime || 0;
-  const hurt = f.hitFlash || 0;
 
   const mat = (m) => (flat ? { base: flat, light: flat, dark: flat, spec: 0, rough: 1 } : m);
   const opt = (cx, cy, r, extra = {}) => ({ cx, cy, r, rim, alpha, ...extra });
@@ -495,9 +486,9 @@ function drawBody(ctx, char, J, f, { flat = null, alpha = 1, noRim = false } = {
   shade(ctx, limbPath({ x: J.hip.x, y: J.hip.y - 3 }, J.kneeB, J.footB, 8.8 * bulk, 6 * bulk, 4 * bulk),
     backDim(M.cloth), opt(J.kneeB.x, J.kneeB.y, 26));
   drawBoot(ctx, J.footB, backDim(M.armor), bulk, opt(J.footB.x, J.footB.y, 12));
-  shade(ctx, limbPath(J.shoulderB, J.elbowB, J.handB, 7.4 * bulk, 5.2 * bulk, 4 * bulk),
-    backDim(M.cloth), opt(J.elbowB.x, J.elbowB.y, 22));
-  shade(ctx, capsule(J.handB.x, J.handB.y, J.handB.x + 1, J.handB.y + 1, 4.4 * bulk), backDim(M.rubber), opt(J.handB.x, J.handB.y, 8));
+  shade(ctx, limbPath(J.shoulderB, J.elbowB, J.handB, 8 * bulk, 6.4 * bulk, 3.8 * bulk),
+    backDim(M.skin), opt(J.elbowB.x, J.elbowB.y, 22));
+  shade(ctx, capsule(J.handB.x, J.handB.y, J.handB.x + 1, J.handB.y + 1, 4.6 * bulk), backDim(M.glove), opt(J.handB.x, J.handB.y, 8));
 
   // ---------- 軀幹 ----------
   // 沿著髖→胸的軸線長出來，所以前傾／後仰時身體是整塊轉，不是方塊疊方塊。
@@ -516,7 +507,18 @@ function drawBody(ctx, char, J, f, { flat = null, alpha = 1, noRim = false } = {
     P(42, -5.6 * W), P(36, -13.2 * W), P(24, -13.4 * W),
     P(10, -9.6 * W), P(-7, -11 * W),
   ], 0.92);
-  shade(ctx, torsoPath, mat(M.cloth), opt(chest.x, (hip.y + chest.y) / 2, 28 * bulk, { ao: 0.35 }));
+  const bareChest = gear.chest === 'bare';
+  shade(ctx, torsoPath, mat(bareChest ? M.skin : M.cloth), opt(chest.x, (hip.y + chest.y) / 2, 28 * bulk, { ao: 0.2 }));
+  if (!flat) {
+    // 胸肌的下緣、胸口中線、腹肌的橫溝 —— 街機 sprite 的肌肉就是靠這幾條線
+    creaseLine(ctx, torsoPath, [P(36, -10 * W), P(33, 0), P(35, 11 * W)], 'rgba(0,0,0,0.3)', 2.2);
+    creaseLine(ctx, torsoPath, [P(43, 1 * W), P(30, 1.5 * W)], 'rgba(0,0,0,0.26)', 2);
+    if (bareChest) {
+      for (const a of [25, 18, 11]) {
+        creaseLine(ctx, torsoPath, [P(a, -7 * W), P(a, 8 * W)], 'rgba(0,0,0,0.22)', 1.8);
+      }
+    }
+  }
 
   // 胸甲／背心
   if (gear.chest !== 'bare') {
@@ -571,13 +573,17 @@ function drawBody(ctx, char, J, f, { flat = null, alpha = 1, noRim = false } = {
 
   // ---------- 前臂 ----------
   drawShoulderPad(ctx, char, J.shoulderF, M, { mat, opt, bulk, flat });
-  // 上臂（布）與前臂（裸露）分開畫，但各自是一條連續的形狀
-  shade(ctx, limbPath(J.shoulderF, J.elbowF, J.handF, 8 * bulk, 5.4 * bulk, 4.2 * bulk),
-    mat(M.cloth), opt(J.elbowF.x, J.elbowF.y, 24, { ao: 0.2 }));
+  // 裸露的手臂：上臂有二頭肌的鼓起、前臂往手腕收
   {
-    const fm = { x: lerp(J.elbowF.x, J.handF.x, 0.5), y: lerp(J.elbowF.y, J.handF.y, 0.5) };
-    shade(ctx, limbPath(J.elbowF, fm, J.handF, 5.2 * bulk, 4.5 * bulk, 3.7 * bulk),
-      mat(M.skin), opt(fm.x, fm.y, 14, { ao: 0.25 }));
+    const bi = { x: lerp(J.shoulderF.x, J.elbowF.x, 0.52), y: lerp(J.shoulderF.y, J.elbowF.y, 0.52) };
+    const armPath = limbPath(J.shoulderF, bi, J.elbowF, 7.6 * bulk, 8.2 * bulk, 5.2 * bulk);
+    shade(ctx, armPath, mat(M.skin), opt(bi.x, bi.y, 20));
+    if (!flat) creaseLine(ctx, armPath, [
+      { x: bi.x - 4 * bulk, y: bi.y - 5 }, { x: bi.x + 2 * bulk, y: bi.y + 4 },
+    ]);
+    const fm = { x: lerp(J.elbowF.x, J.handF.x, 0.42), y: lerp(J.elbowF.y, J.handF.y, 0.42) };
+    shade(ctx, limbPath(J.elbowF, fm, J.handF, 5.3 * bulk, 5.4 * bulk, 3.7 * bulk),
+      mat(M.skin), opt(fm.x, fm.y, 14));
   }
   // 護腕：從手肘下方一路包到手腕，手臂才不會是全身最亮的一塊
   const fa0 = { x: lerp(J.elbowF.x, J.handF.x, 0.18), y: lerp(J.elbowF.y, J.handF.y, 0.18) };
@@ -585,20 +591,11 @@ function drawBody(ctx, char, J, f, { flat = null, alpha = 1, noRim = false } = {
   shade(ctx, capsule(fa0.x, fa0.y, fa1.x, fa1.y, 5.4 * bulk, 4.2 * bulk), mat(M.strap), opt(fa0.x, fa0.y, 12, { ao: 0.35 }));
   shade(ctx, capsule(fa0.x, fa0.y, lerp(fa0.x, fa1.x, 0.4), lerp(fa0.y, fa1.y, 0.4), 5.5 * bulk, 5 * bulk), mat(M.armor), opt(fa0.x, fa0.y, 10, { ao: 0.3 }));
   // 手套
-  shade(ctx, capsule(J.handF.x, J.handF.y, J.handF.x + 2, J.handF.y + 2, 4.8 * bulk), mat(M.rubber), opt(J.handF.x, J.handF.y, 8));
+  shade(ctx, capsule(J.handF.x, J.handF.y, J.handF.x + 2, J.handF.y + 2, 5 * bulk), mat(M.glove), opt(J.handF.x, J.handF.y, 8));
 
   // ---------- 武器 ----------
   drawWeapon(ctx, char, J, M, { mat, opt, bulk, flat, t, f });
 
-  // ---------- 受擊白閃 ----------
-  if (hurt > 0.02 && !flat) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = Math.min(0.75, hurt * 0.75);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(-60, -160, 120, 170);
-    ctx.restore();
-  }
 }
 
 function drawBoot(ctx, foot, m, bulk, o) {
@@ -639,26 +636,144 @@ function drawShoulderPad(ctx, char, s, M, { mat, opt, bulk, flat }) {
   }
 }
 
+/**
+ * 臉。街機格鬥的角色一定看得到表情 —— 眉毛壓得越低越兇。
+ * 本地座標永遠朝右，所以只畫看得見的那隻眼睛（3/4 側臉）。
+ */
+function drawFace(ctx, h, r, char, flat) {
+  if (flat) return;
+  const ink = '#1b141a';
+  ctx.save();
+  // 眼窩的陰影
+  ctx.fillStyle = 'rgba(0,0,0,0.16)';
+  ctx.beginPath();
+  ctx.ellipse(h.x + r * 0.42, h.y - r * 0.04, r * 0.26, r * 0.2, -0.1, 0, Math.PI * 2);
+  ctx.fill();
+  // 眼白 + 瞳孔
+  ctx.fillStyle = '#f6f2ea';
+  ctx.beginPath();
+  ctx.ellipse(h.x + r * 0.46, h.y - r * 0.02, r * 0.19, r * 0.14, -0.1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = ink;
+  ctx.beginPath();
+  ctx.ellipse(h.x + r * 0.54, h.y - r * 0.01, r * 0.085, r * 0.12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // 眉毛：壓在眼睛正上方，往鼻樑斜下去
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = r * 0.14;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(h.x + r * 0.2, h.y - r * 0.34);
+  ctx.lineTo(h.x + r * 0.66, h.y - r * 0.22);
+  ctx.stroke();
+  // 嘴：抿著的一條
+  ctx.lineWidth = r * 0.09;
+  ctx.strokeStyle = 'rgba(27,20,26,0.7)';
+  ctx.beginPath();
+  ctx.moveTo(h.x + r * 0.42, h.y + r * 0.52);
+  ctx.lineTo(h.x + r * 0.7, h.y + r * 0.48);
+  ctx.stroke();
+  // 顴骨的陰影
+  ctx.strokeStyle = 'rgba(0,0,0,0.14)';
+  ctx.lineWidth = r * 0.16;
+  ctx.beginPath();
+  ctx.moveTo(h.x + r * 0.3, h.y + r * 0.22);
+  ctx.lineTo(h.x + r * 0.64, h.y + r * 0.16);
+  ctx.stroke();
+  ctx.restore();
+  // 耳朵
+  shade(ctx, smooth([
+    { x: h.x - r * 0.3, y: h.y - r * 0.08 }, { x: h.x - r * 0.08, y: h.y },
+    { x: h.x - r * 0.12, y: h.y + r * 0.32 }, { x: h.x - r * 0.36, y: h.y + r * 0.24 },
+  ], 0.9), MAT.skin, { cx: h.x - r * 0.22, cy: h.y + r * 0.12, r: r * 0.5, outlineWidth: 1.6 });
+}
+
+/** 頭髮：一大塊實色 + 幾撮尖角，用剪影做造型 */
+function drawHair(ctx, h, r, style, color, flat) {
+  const hairMat = {
+    base: color, light: mixColor(color, '#ffffff', 0.3),
+    dark: mixColor(color, '#000000', 0.42), spec: 0.25, rough: 0.5,
+  };
+  const o = { cx: h.x, cy: h.y - r * 0.4, r: r * 1.4 };
+  switch (style) {
+    case 'bald':
+      break;
+    case 'wild': {       // 爆炸頭：往後掃的大尖角
+        const pts = [
+          { x: h.x + r * 0.9, y: h.y - r * 0.55 },
+          { x: h.x + r * 0.3, y: h.y - r * 1.3 },
+          { x: h.x - r * 0.1, y: h.y - r * 0.85 },
+          { x: h.x - r * 0.5, y: h.y - r * 1.5 },
+          { x: h.x - r * 0.8, y: h.y - r * 0.8 },
+          { x: h.x - r * 1.5, y: h.y - r * 1.15 },
+          { x: h.x - r * 1.05, y: h.y - r * 0.25 },
+          { x: h.x - r * 1.5, y: h.y + r * 0.2 },
+          { x: h.x - r * 0.85, y: h.y + r * 0.45 },
+          { x: h.x - r * 0.55, y: h.y - r * 0.35 },
+        ];
+        shade(ctx, poly(pts), hairMat, o);
+        break;
+      }
+    case 'ponytail': {   // 束起來的馬尾
+        shade(ctx, poly([
+          { x: h.x - r * 1.05, y: h.y - r * 0.2 },
+          { x: h.x - r * 1.9, y: h.y + r * 0.5 },
+          { x: h.x - r * 1.75, y: h.y + r * 0.95 },
+          { x: h.x - r * 0.9, y: h.y + r * 0.2 },
+        ]), hairMat, o);
+        shade(ctx, smooth([
+          { x: h.x + r * 0.74, y: h.y - r * 0.56 },
+          { x: h.x + r * 0.16, y: h.y - r * 1.16 },
+          { x: h.x - r * 0.7, y: h.y - r * 0.92 },
+          { x: h.x - r * 0.92, y: h.y - r * 0.16 },
+          { x: h.x - r * 0.42, y: h.y - r * 0.56 },
+          { x: h.x + r * 0.44, y: h.y - r * 0.34 },
+        ], 0.75), hairMat, o);
+        break;
+      }
+    case 'short':
+    default: {           // 貼頭皮的短髮，前額留幾撮
+        shade(ctx, poly([
+          { x: h.x + r * 0.78, y: h.y - r * 0.52 },
+          { x: h.x + r * 0.42, y: h.y - r * 0.78 },
+          { x: h.x + r * 0.5, y: h.y - r * 1.02 },
+          { x: h.x + r * 0.02, y: h.y - r * 0.86 },
+          { x: h.x + r * 0.06, y: h.y - r * 1.2 },
+          { x: h.x - r * 0.5, y: h.y - r * 1.06 },
+          { x: h.x - r * 0.95, y: h.y - r * 0.46 },
+          { x: h.x - r * 0.86, y: h.y + r * 0.16 },
+          { x: h.x - r * 0.64, y: h.y - r * 0.42 },
+        ]), hairMat, o);
+        break;
+      }
+  }
+}
+
 function drawHead(ctx, char, J, M, { mat, opt, bulk, flat, t }) {
   const h = J.head;
-  const r = 10.6 * (char.build.headScale || 1) * bulk;
+  const r = 12.2 * (char.build.headScale || 1) * bulk;
   const gear = (char.gear && char.gear.head) || 'none';
+  const hair = (char.gear && char.gear.hair) || 'short';
+  const hairColor = (char.palette && char.palette.hair) || '#2b1f1a';
 
   // 脖子
-  shadeLimb(ctx, J.neck.x, J.neck.y + 3, h.x, h.y + r * 0.75, 5.4 * bulk, 4.6 * bulk, mat(M.skin), opt(J.neck.x, J.neck.y, 11, { ao: 0.7 }));
+  shadeLimb(ctx, J.neck.x, J.neck.y + 3, h.x, h.y + r * 0.66, 6 * bulk, 5 * bulk, mat(M.skin), opt(J.neck.x, J.neck.y, 12, { ao: 0.3 }));
 
   // 頭顱
   // 顱骨上寬、下顎收尖、鼻樑往前凸一點：正面看是蛋形，側看有人臉的稜線
+  // 額頭 → 鼻樑（往前凸）→ 人中 → 下巴 → 下顎角：側臉的稜線
   const skull = smooth([
-    { x: h.x - r * 0.78, y: h.y - r * 0.5 },
-    { x: h.x - r * 0.42, y: h.y - r * 1.02 },
-    { x: h.x + r * 0.38, y: h.y - r * 1.05 },
-    { x: h.x + r * 0.86, y: h.y - r * 0.4 },
-    { x: h.x + r * 0.92, y: h.y + r * 0.12 },
-    { x: h.x + r * 0.66, y: h.y + r * 0.72 },
-    { x: h.x + r * 0.05, y: h.y + r * 1.02 },
-    { x: h.x - r * 0.62, y: h.y + r * 0.62 },
-  ], 1);
+    { x: h.x - r * 0.76, y: h.y - r * 0.48 },
+    { x: h.x - r * 0.4, y: h.y - r * 1.0 },
+    { x: h.x + r * 0.36, y: h.y - r * 1.02 },
+    { x: h.x + r * 0.8, y: h.y - r * 0.5 },
+    { x: h.x + r * 0.82, y: h.y - r * 0.02 },
+    { x: h.x + r * 1.02, y: h.y + r * 0.26 },
+    { x: h.x + r * 0.74, y: h.y + r * 0.36 },
+    { x: h.x + r * 0.72, y: h.y + r * 0.74 },
+    { x: h.x + r * 0.1, y: h.y + r * 1.0 },
+    { x: h.x - r * 0.58, y: h.y + r * 0.6 },
+  ], 0.72);
   shade(ctx, skull, mat(M.skin), opt(h.x, h.y, r * 1.6, { ao: 0.25 }));
   if (!flat) {
     // 眼窩陰影：暗一點的橫帶，臉才有結構
@@ -743,23 +858,17 @@ function drawHead(ctx, char, J, M, { mat, opt, bulk, flat, t }) {
       }
       break;
     }
-    case 'goggles': {     // 頭巾 + 護目鏡
-      // 包住頭頂的布
+    case 'goggles': {     // 護目鏡推在額頭上，臉看得見
+      drawHair(ctx, h, r, hair, hairColor, flat);
+      drawFace(ctx, h, r, char, flat);
       shade(ctx, smooth([
-        { x: h.x - r * 0.9, y: h.y - r * 0.25 }, { x: h.x - r * 0.45, y: h.y - r * 1.08 },
-        { x: h.x + r * 0.45, y: h.y - r * 1.05 }, { x: h.x + r * 0.92, y: h.y - r * 0.4 },
-        { x: h.x + r * 0.8, y: h.y - r * 0.05 }, { x: h.x - r * 0.7, y: h.y - r * 0.1 },
-      ], 0.9), mat(M.cloth), opt(h.x, h.y - r * 0.6, r * 1.2, { ao: 0.3 }));
-      // 鏡帶
-      shade(ctx, smooth([
-        { x: h.x - r * 0.86, y: h.y - r * 0.4 }, { x: h.x + r * 0.9, y: h.y - r * 0.34 },
-        { x: h.x + r * 0.86, y: h.y + r * 0.02 }, { x: h.x - r * 0.84, y: h.y - r * 0.04 },
-      ], 0.35), mat(M.strap), opt(h.x, h.y - r * 0.2, r * 0.6));
+        { x: h.x - r * 1.0, y: h.y - r * 0.95 }, { x: h.x + r * 0.95, y: h.y - r * 0.82 },
+        { x: h.x + r * 0.9, y: h.y - r * 0.44 }, { x: h.x - r * 0.98, y: h.y - r * 0.58 },
+      ], 0.35), mat(M.strap), opt(h.x, h.y - r * 0.7, r * 0.7));
       if (!flat) {
-        for (const s2 of [-0.26, 0.44]) {
-          const gx = h.x + r * s2, gy = h.y - r * 0.19;
-          shade(ctx, capsule(gx, gy, gx + 0.3, gy, r * 0.21), mat(M.metal), opt(gx, gy, r * 0.4));
-          bloom(ctx, gx, gy, r * 0.3, char.accent, 0.4);
+        for (const s2 of [-0.3, 0.42]) {
+          const gx = h.x + r * s2, gy = h.y - r * 0.68;
+          shade(ctx, capsule(gx, gy, gx + 0.3, gy, r * 0.24), mat(M.metal), opt(gx, gy, r * 0.4));
         }
       }
       break;
@@ -799,14 +908,35 @@ function drawHead(ctx, char, J, M, { mat, opt, bulk, flat, t }) {
       ]), mat(M.cloth), opt(h.x, h.y - r * 0.7, r));
       break;
     }
-    default:
-      // 光頭 + 一點鬍渣陰影
+    case 'headband': {    // 綁頭帶：街機格鬥的經典造型，帶尾會飄
+      drawHair(ctx, h, r, hair, hairColor, flat);
+      drawFace(ctx, h, r, char, flat);
+      const band = {
+        base: char.color, light: mixColor(char.color, '#ffffff', 0.35),
+        dark: mixColor(char.color, '#000000', 0.4), spec: 0.1, rough: 0.9,
+      };
+      shade(ctx, poly([
+        { x: h.x - r * 1.02, y: h.y - r * 0.62 }, { x: h.x + r * 0.92, y: h.y - r * 0.5 },
+        { x: h.x + r * 0.88, y: h.y - r * 0.18 }, { x: h.x - r * 1.0, y: h.y - r * 0.28 },
+      ]), band, opt(h.x, h.y - r * 0.4, r));
       if (!flat) {
-        ctx.fillStyle = 'rgba(0,0,0,0.25)';
-        ctx.beginPath();
-        ctx.ellipse(h.x + r * 0.1, h.y + r * 0.45, r * 0.6, r * 0.35, 0, 0, Math.PI * 2);
-        ctx.fill();
+        const sway = Math.sin(t * 3.4) * r * 0.3;
+        for (const k of [0, 1]) {
+          shade(ctx, poly([
+            { x: h.x - r * 0.95, y: h.y - r * 0.55 + k * r * 0.22 },
+            { x: h.x - r * 2.3, y: h.y - r * 0.2 + sway + k * r * 0.5 },
+            { x: h.x - r * 2.25, y: h.y + r * 0.08 + sway + k * r * 0.5 },
+            { x: h.x - r * 0.95, y: h.y - r * 0.25 + k * r * 0.22 },
+          ]), band, opt(h.x - r * 1.5, h.y, r));
+        }
       }
+      break;
+    }
+    case 'none':
+    default:
+      // 素顏：頭髮 + 臉
+      drawHair(ctx, h, r, hair, hairColor, flat);
+      drawFace(ctx, h, r, char, flat);
       break;
   }
 }
@@ -1108,12 +1238,12 @@ function drawWeapon(ctx, char, J, M, { mat, opt, bulk, flat, t, f }) {
   // 雙手武器：後手也扶在柄上，看起來才有重量
   if (spec.twoHand && !flat) {
     const grip = along(-18 * bulk);
-    shade(ctx, capsule(grip.x, grip.y, grip.x + 1, grip.y + 1, 5.6 * bulk), mat(M.rubber), opt(grip.x, grip.y, 9, { ao: 0.3 }));
+    shade(ctx, capsule(grip.x, grip.y, grip.x + 1, grip.y + 1, 5.6 * bulk), mat(M.glove), opt(grip.x, grip.y, 9, { ao: 0.3 }));
   }
   // 前手的拳頭最後蓋上去，手指才是包住武器柄的
   if (spec.kind && spec.kind !== 'knuckles') {
     const g0 = along(-4 * bulk), g1 = along(5 * bulk);
-    shade(ctx, capsule(g0.x, g0.y, g1.x, g1.y, 4.8 * bulk, 4.3 * bulk), mat(M.rubber), opt(h.x, h.y, 9, { ao: 0.35 }));
+    shade(ctx, capsule(g0.x, g0.y, g1.x, g1.y, 5 * bulk, 4.5 * bulk), mat(M.glove), opt(h.x, h.y, 9, { ao: 0.3 }));
   }
 
   // 記下武器尖端（世界座標由呼叫端換算），給揮擊殘影用
@@ -1141,18 +1271,13 @@ export function drawPortrait(ctx, char, x, y, scale, t, pose = 'idle') {
   ctx.translate(x, y);
   const s = scale * (char.build.scale || 1) * 1.12;
   ctx.scale(s, s);
-  const J = poseFor(pose, 0.35, t * 2.4);
-  ctx.save();
-  ctx.translate(RIM.x * -2.2, RIM.y * -2.2);
-  drawBody(ctx, char, J, fake, { flat: mixColor(char.color, '#ffe4c4', 0.55), alpha: 0.55 });
-  ctx.restore();
-  drawBody(ctx, char, J, fake, {});
+  drawBody(ctx, char, poseFor(pose, 0.35, t * 2.4), fake, {});
   ctx.restore();
 }
 
 /** 畫面級：底片顆粒 + 暗角 + 色偏，最後一層疊上去 */
 export function drawGrade(ctx, w, h, opts = {}) {
-  const { grain = 0.05, vignette = 0.55, shift = 0 } = opts;
+  const { grain = 0, vignette = 0.16, shift = 0 } = opts;
   if (grain > 0) {
     const pat = grainPattern(ctx);
     ctx.save();

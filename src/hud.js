@@ -30,8 +30,8 @@ export function drawHud(ctx, battle, opts = {}) {
   localSides.forEach((side, idx) => {
     const f = battle.fighters[side];
     if (!f) return;
-    const x = localSides.length > 1 ? (side === 0 ? 150 : VIEW - 150 - 330) : VIEW / 2 - 165;
-    drawSkillBar(ctx, f, x, WORLD.h - 92, t);
+    const x = localSides.length > 1 ? (side === 0 ? 24 : VIEW - 24 - 258) : 24;
+    drawSkillBar(ctx, f, x, WORLD.h - 76, t);
   });
 
   if (battle.comboT > 0 && battle.comboShown >= 3) {
@@ -197,8 +197,8 @@ function drawSkillBar(ctx, f, x, y, t) {
     { key: 'O', s: f.char.ult, cd: 0, max: 0, ult: true },
   ];
   slots.forEach((slot, i) => {
-    const sx = x + i * 112;
-    const w = 100, h = 62;
+    const sx = x + i * 88;
+    const w = 80, h = 52;
     const ready = slot.ult ? f.meter >= MAX_METER : slot.cd <= 0;
     const col = slot.ult ? '#fff27a' : f.char.color;
     panel(ctx, sx, y, w, h, ready ? col : '#4a5168', { glow: ready ? 1 : 0, cut: 8 });
@@ -214,10 +214,10 @@ function drawSkillBar(ctx, f, x, y, t) {
       ctx.fillRect(sx, y + h * (1 - k), w, h * k);
       text(ctx, `${Math.floor(k * 100)}%`, sx + w / 2, y + h / 2 + 8, { size: 18, color: '#ffe27a', align: 'center' });
     }
-    text(ctx, slot.key, sx + 8, y + 18, { size: 13, color: ready ? col : '#6b7599' });
+    text(ctx, slot.key, sx + 7, y + 17, { size: 12, color: ready ? col : '#6b7599' });
     const name = slot.s.name;
-    const size = name.length > 5 ? 13 : 15;
-    text(ctx, name, sx + w / 2, y + h - 12, {
+    const size = name.length > 4 ? 12 : 13;
+    text(ctx, name, sx + w / 2, y + h - 9, {
       size, color: ready ? '#e7ecff' : '#767f9f', align: 'center',
     });
     if (ready && slot.ult) {
